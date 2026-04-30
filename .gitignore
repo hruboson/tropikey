@@ -60,3 +60,6 @@ compile_commands.json
 
 # compiled files
 build/
+
+# generated files
+*.log
