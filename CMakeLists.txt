@@ -72,17 +72,52 @@ target_include_directories(tropic PUBLIC ${LT_HAL_INC_DIRS})
 #                                                                         #
 ###########################################################################
 
+set(PROJECT_SHARED_SOURCES
+    src/device.cpp
+    src/pkcs11_module.cpp
+)
+
+set(PROJECT_INCLUDE_DIRS
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/pkcs11
+)
+
+###########################################################################
+#                                                                         #
+#   Executable                                                            #
+#                                                                         #
+###########################################################################
+
 add_executable(${PROJECT_NAME}
     src/main.cpp
-	src/device.cpp
+    ${PROJECT_SHARED_SOURCES}
 )
-
+target_include_directories(${PROJECT_NAME} PRIVATE ${PROJECT_INCLUDE_DIRS})
 set_target_properties(${PROJECT_NAME} PROPERTIES
     LINKER_LANGUAGE CXX
+    OUTPUT_NAME "${PROJECT_NAME}.out"
 )
-
 target_compile_definitions(${PROJECT_NAME} PRIVATE
     LT_USB_DEVKIT_PATH=\"${LT_USB_DEVKIT_PATH}\"
 )
-
 target_link_libraries(${PROJECT_NAME} PRIVATE tropic)
+
+###########################################################################
+#                                                                         #
+#   PKCS#11 shared library (for SSH / ssh-agent / PKCS11Provider)         #
+#                                                                         #
+###########################################################################
+
+add_library(${PROJECT_NAME}_pkcs11 SHARED
+    ${PROJECT_SHARED_SOURCES}
+)
+target_include_directories(${PROJECT_NAME}_pkcs11 PRIVATE ${PROJECT_INCLUDE_DIRS})
+set_target_properties(${PROJECT_NAME}_pkcs11 PROPERTIES
+    LINKER_LANGUAGE CXX
+    PREFIX ""                          # produces tropikey_pkcs11.so, not libtropikey_pkcs11.so
+    OUTPUT_NAME "${PROJECT_NAME}_pkcs11"
+)
+target_compile_definitions(${PROJECT_NAME}_pkcs11 PRIVATE
+    LT_USB_DEVKIT_PATH=\"${LT_USB_DEVKIT_PATH}\"
+)
+target_link_libraries(${PROJECT_NAME}_pkcs11 PRIVATE tropic)

@@ -1,5 +1,11 @@
-BUILD_DIR := build
-BINARY    := $(BUILD_DIR)/tropikey
+BUILD_DIR 		:= build
+PROJECT			:= tropikey
+
+BINARY_NAME		:= $(PROJECT).out
+BINARY    		:= $(BUILD_DIR)/$(BINARY_NAME)
+
+PKCS_SO_NAME	:= $(PROJECT)_pkcs11.so
+PKCS_SO    		:= $(BUILD_DIR)/$(PKCS_SO_NAME)
 
 .PHONY: all configure build run clean rebuild
 
@@ -10,6 +16,8 @@ configure:
 
 build: configure
 	cmake --build $(BUILD_DIR) --parallel
+	cp $(BINARY) ./$(BINARY_NAME)
+	cp $(PKCS_SO) ./$(PKCS_SO_NAME)
 
 run: build
 	./$(BINARY) info.log

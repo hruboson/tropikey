@@ -8,6 +8,9 @@ pkgs.mkShell {
 	gdb
 	cmake
 
+    openssh      
+    opensc
+
 	pkg-config
   ];
 
