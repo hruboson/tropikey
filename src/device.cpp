@@ -167,7 +167,6 @@ bool Device::initialize_ed25519_key(lt_ecc_slot_t slot, std::vector<uint8_t>* pu
 		std::cout << "Slot empty, generating new key ... ";
 		ret = lt_ecc_key_generate(&lt_handle, slot, TR01_CURVE_ED25519);
 		if (LT_OK != ret){
-			//TODO
 			std::cerr << "Error generating a key in slot " << slot << " ... aborting\n";
 			return fail("ECC_KEY_GEN", ret);
 		}
