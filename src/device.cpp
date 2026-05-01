@@ -24,6 +24,22 @@ static int print_cb(const char* fmt, ...) {
 	return n;
 }
 
+const char* to_string(lt_ecc_curve_type_t type) {
+    switch (type) {
+        case TR01_CURVE_P256:   return "TR01_CURVE_P256";
+        case TR01_CURVE_ED25519: return "TR01_CURVE_ED25519";
+        default: return "UNKNOWN_CURVE";
+    }
+}
+
+const char* to_string(lt_ecc_key_origin_t type) {
+    switch (type) {
+        case TR01_CURVE_GENERATED: return "TR01_CURVE_GENERATED";
+        case TR01_CURVE_STORED:    return "TR01_CURVE_STORED";
+        default: return "UNKNOWN_ORIGIN";
+    }
+}
+
 Device::Device() {}
 
 Device::~Device() {}
@@ -127,11 +143,16 @@ bool Device::initialize_ed25519_key(lt_ecc_slot_t slot, std::vector<uint8_t>* pu
 	lt_ecc_curve_type_t curve_type;
 	lt_ecc_key_origin_t origin_type;
 
+	if(pubkey->size() < ED25519_LEN){
+		std::cerr << "Pubkey storage is either uninitialized or too small, must be at least 32 bytes (32*uint8_t) long\n";
+		return false;
+	}
+
 	ret = lt_ecc_key_read(
 		&lt_handle, 
 		slot, 
 		pubkey->data(),
-		pubkey->size(),
+		ED25519_LEN,
 		&curve_type,
 		&origin_type
 	);
@@ -139,7 +160,7 @@ bool Device::initialize_ed25519_key(lt_ecc_slot_t slot, std::vector<uint8_t>* pu
 	if (LT_OK == ret) {
 		// slot already occupied
 		// TODO add more STATE return types
-		std::cout << "Key already exists ... public key:\n" << pubkey << "\n";
+		std::cout << "Key already exists ... public key: " << pubkey << "\n";
 		return true;
 	} else {
 		// slot is empty, generate new
@@ -159,13 +180,50 @@ bool Device::initialize_ed25519_key(lt_ecc_slot_t slot, std::vector<uint8_t>* pu
 			&curve_type,
 			&origin_type
 		);
-		std::cout << "public key:\n" << pubkey << "\n";
+		std::cout << "public key: " << pubkey << "\n";
 	}
 
 	return true;
 }
 
 bool Device::read_ed25519_key(lt_ecc_slot_t slot, std::vector<uint8_t>* pubkey){
+	lt_ret_t ret = LT_OK;
+	lt_ecc_curve_type_t curve_type;
+	lt_ecc_key_origin_t origin_type;
+
+	if(pubkey->size() < ED25519_LEN){
+		std::cerr << "Pubkey storage is either uninitialized or too small, must be at least 32 bytes (32*uint8_t) long\n";
+		return false;
+	}
+
+	ret = lt_ecc_key_read(
+		&lt_handle, 
+		slot, 
+		pubkey->data(),
+		ED25519_LEN,
+		&curve_type,
+		&origin_type
+	);
+
+	if (LT_OK == ret) {
+		std::cout << "Key exists in slot " << slot << " ... public key: "
+			<< pubkey << "\n"
+			<< "Key details:\n\t" << "Curve type: " << to_string(curve_type) << "\n\t" << "Origin: " << to_string(origin_type) << "\n";
+		return true;
+	} else {
+		std::cout << "Slot empty, please initialize the new key first!\n";
+		return false;
+	}
+}
+
+bool Device::erase_ed25519_key(lt_ecc_slot_t slot){
+	lt_ret_t ret = LT_OK;
+	ret = lt_ecc_key_erase(&lt_handle, slot);
+	if(LT_OK != ret){
+		return fail("ECC_KEY_ERASE", ret);
+	}
+
+	std::cout << "Successfully erased ed25519 key in slot " << slot << "\n";
 	return true;
 }
 

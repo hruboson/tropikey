@@ -25,6 +25,8 @@ struct lt_ctx_mbedtls_v4_t;
 #define LT_EX_SH0_PUB sh0pub_prod0
 #endif
 
+#define ED25519_LEN 32
+
 class Device {
 public:
     Device();
@@ -37,6 +39,7 @@ public:
 	// todo custom class for the key
 	bool initialize_ed25519_key(lt_ecc_slot_t slot, std::vector<uint8_t>* pubkey);
 	bool read_ed25519_key(lt_ecc_slot_t slot, std::vector<uint8_t>* pubkey);
+	bool erase_ed25519_key(lt_ecc_slot_t slot);
 
     bool print_info(std::ostream& out);
 
