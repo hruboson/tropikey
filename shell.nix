@@ -37,7 +37,7 @@ pkgs.mkShell {
 			echo "  [3/3] compile_commands ..... compile_commands.json ready"
 		fi
 	else
-	    echo "  [2/2] compile_commands .... no CMakeLists.txt found, skipping"
+	    echo "  [3/3] compile_commands .... no CMakeLists.txt found, skipping"
 	fi
 
 	echo ""
