@@ -24,16 +24,17 @@ pkgs.mkShell {
     echo "║ libtropic development shell ║"
 	echo "╚═════════════════════════════╝"
 	echo ""
-    echo "  [1/2] Toolchain ..... gcc, cmake ready"
+    echo "  [1/3] Toolchain ..... gcc, gdb, cmake ready"
+    echo "  [2/3] SSH utils ..... ssh, pkcs11 ready"
 
 	if [ -f "CMakeLists.txt" ]; then
 		if [ -f "compile_commands.json" ]; then
-		  	echo "  [2/2] compile_commands ..... already exists, skipping"
+		  	echo "  [3/3] compile_commands ..... already exists, skipping"
 		else
-			echo "  [2/2] compile_commands .... generating..."
+			echo "  [3/3] compile_commands .... generating..."
 		  	cmake -S . -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON > /dev/null 2>&1
 		  	ln -sf build/compile_commands.json compile_commands.json
-			echo "  [2/2] compile_commands ..... compile_commands.json ready"
+			echo "  [3/3] compile_commands ..... compile_commands.json ready"
 		fi
 	else
 	    echo "  [2/2] compile_commands .... no CMakeLists.txt found, skipping"
