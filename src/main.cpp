@@ -54,6 +54,10 @@ int main(int argc, char* argv[]) {
 		return EXIT_FAILURE;
 	}
 
+	lt_ecc_slot_t slot_write_to = TR01_ECC_SLOT_0;
+	std::vector<uint8_t> pubkey(32, 0);
+	device.initialize_ed25519_key(slot_write_to, &pubkey);
+
 	if(!device.close()){
 		return EXIT_FAILURE;
 	}

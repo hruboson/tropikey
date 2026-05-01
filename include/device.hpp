@@ -4,6 +4,7 @@
 #include <fstream>
 #include <cstring>
 #include <cstdarg>
+#include <vector>
 
 #include "libtropic.h"
 #include "libtropic_common.h"
@@ -32,6 +33,10 @@ public:
     bool init();
 	bool close();
 	bool start_secure_session();
+
+	// todo custom class for the key
+	bool initialize_ed25519_key(lt_ecc_slot_t slot, std::vector<uint8_t>* pubkey);
+	bool read_ed25519_key(lt_ecc_slot_t slot, std::vector<uint8_t>* pubkey);
 
     bool print_info(std::ostream& out);
 

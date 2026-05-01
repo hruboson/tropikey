@@ -26,9 +26,7 @@ static int print_cb(const char* fmt, ...) {
 
 Device::Device() {}
 
-Device::~Device() {
-
-}
+Device::~Device() {}
 
 bool Device::init() {
 	lt_handle = {};
@@ -90,6 +88,9 @@ bool Device::close(){
 bool Device::start_secure_session(){
 	std::cout << "Starting Secure Session with key slot " << (int)TR01_PAIRING_KEY_SLOT_INDEX_0 << " ... ";
     // Keys are chosen based on the CMake option LT_SH0_KEYS.
+	// Under the hood this runs the NOISE XX handshake: the chip and host exchange 
+	// ephemeral X25519 public keys, derive a shared secret, and from that point all 
+	// L3 commands are encrypted.
     lt_ret_t ret = lt_verify_chip_and_start_secure_session(&lt_handle, LT_EX_SH0_PRIV, LT_EX_SH0_PUB, TR01_PAIRING_KEY_SLOT_INDEX_0);
     if (LT_OK != ret) {
 		std::cerr << "\nFailed to start Secure Session with key " << (int)TR01_PAIRING_KEY_SLOT_INDEX_0 << " ret=" << lt_ret_verbose(ret) << "\n";
@@ -113,10 +114,58 @@ bool Device::start_secure_session(){
 	std::string recv_str(reinterpret_cast<char*>(recv_buf.data()), recv_buf.size());
 	if (ping_msg != recv_str){
 		std::cerr << "Ping command did not return the sent string, aborting\n";
+		return false;
 	}
 
 	std::cout << "OK\n";
 
+	return true;
+}
+
+bool Device::initialize_ed25519_key(lt_ecc_slot_t slot, std::vector<uint8_t>* pubkey){
+	lt_ret_t ret = LT_OK;
+	lt_ecc_curve_type_t curve_type;
+	lt_ecc_key_origin_t origin_type;
+
+	ret = lt_ecc_key_read(
+		&lt_handle, 
+		slot, 
+		pubkey->data(),
+		pubkey->size(),
+		&curve_type,
+		&origin_type
+	);
+
+	if (LT_OK == ret) {
+		// slot already occupied
+		// TODO add more STATE return types
+		std::cout << "Key already exists ... public key:\n" << pubkey << "\n";
+		return true;
+	} else {
+		// slot is empty, generate new
+		std::cout << "Slot empty, generating new key ... ";
+		ret = lt_ecc_key_generate(&lt_handle, slot, TR01_CURVE_ED25519);
+		if (LT_OK != ret){
+			//TODO
+			std::cerr << "Error generating a key in slot " << slot << " ... aborting\n";
+			return fail("ECC_KEY_GEN", ret);
+		}
+
+		ret = lt_ecc_key_read(
+			&lt_handle, 
+			slot, 
+			reinterpret_cast<uint8_t*>(pubkey->data()),
+			pubkey->size(),
+			&curve_type,
+			&origin_type
+		);
+		std::cout << "public key:\n" << pubkey << "\n";
+	}
+
+	return true;
+}
+
+bool Device::read_ed25519_key(lt_ecc_slot_t slot, std::vector<uint8_t>* pubkey){
 	return true;
 }
 
