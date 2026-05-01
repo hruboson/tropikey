@@ -1,7 +1,10 @@
 #include "device.hpp"
+#include "libtropic.h"
+#include "libtropic_common.h"
 
 #include <cstdarg>
 #include <cstdio>
+#include <vector>
 
 // global bridge for C callback
 static std::ostream* g_out = nullptr;
@@ -24,8 +27,7 @@ static int print_cb(const char* fmt, ...) {
 Device::Device() {}
 
 Device::~Device() {
-	lt_deinit(&lt_handle);
-	mbedtls_psa_crypto_free();
+
 }
 
 bool Device::init() {
@@ -54,6 +56,65 @@ bool Device::init() {
 		std::cerr << "\nFailed to initialize handle, ret=" << lt_ret_verbose(ret) << "\n";
 		return false;
 	}
+	std::cout << "OK\n";
+
+	return true;
+}
+
+bool Device::close(){
+	lt_ret_t ret = LT_OK;
+
+	std::cout << "Aborting secure session ... ";
+    ret = lt_session_abort(&lt_handle);
+    if (LT_OK != ret) {
+		std::cerr << "\nFailed to abort Secure Session, ret=" << lt_ret_verbose(ret) << "\n";
+        lt_deinit(&lt_handle);
+        mbedtls_psa_crypto_free();
+		return false;
+    }
+	std::cout << "OK\n";
+
+	ret = lt_deinit(&lt_handle);
+	if (LT_OK != ret){
+		std::cerr << "Could not deinitialize handle, ret=" << lt_ret_verbose(ret) << "\n";
+		mbedtls_psa_crypto_free();
+		return false;
+	}
+	mbedtls_psa_crypto_free();
+
+	std::cout << "Deinitialization successful!\n";
+
+	return true;
+}
+
+bool Device::start_secure_session(){
+	std::cout << "Starting Secure Session with key slot " << (int)TR01_PAIRING_KEY_SLOT_INDEX_0 << " ... ";
+    // Keys are chosen based on the CMake option LT_SH0_KEYS.
+    lt_ret_t ret = lt_verify_chip_and_start_secure_session(&lt_handle, LT_EX_SH0_PRIV, LT_EX_SH0_PUB, TR01_PAIRING_KEY_SLOT_INDEX_0);
+    if (LT_OK != ret) {
+		std::cerr << "\nFailed to start Secure Session with key " << (int)TR01_PAIRING_KEY_SLOT_INDEX_0 << " ret=" << lt_ret_verbose(ret) << "\n";
+		std::cerr << "Check if you use correct SH0 keys! Hint: if you use an engineering sample chip, compile with\n"
+                  << "-DLT_SH0_KEYS=eng_sample\n";
+        return false;
+    }
+	std::cout << "OK\n";
+
+	std::cout << "Testing communication with a PING message ... ";
+	std::string ping_msg = "Hello world!";
+	
+	std::vector<uint8_t> recv_buf(ping_msg.size());
+	
+	ret = lt_ping(&lt_handle, reinterpret_cast<const uint8_t*>(ping_msg.data()), recv_buf.data(), ping_msg.size());
+    if (LT_OK != ret) {
+		std::cerr << "Ping command failed, ret=" << lt_ret_verbose(ret) << "\n";
+        return false;
+    }
+
+	std::string recv_str(reinterpret_cast<char*>(recv_buf.data()), recv_buf.size());
+	if (ping_msg != recv_str){
+		std::cerr << "Ping command did not return the sent string, aborting\n";
+	}
+
 	std::cout << "OK\n";
 
 	return true;

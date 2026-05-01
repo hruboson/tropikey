@@ -1,3 +1,4 @@
+#include <cstdlib>
 #include <iostream>
 #include <fstream>
 #include <cstring>
@@ -48,6 +49,14 @@ int main(int argc, char* argv[]) {
         std::cout << ". Saved in " << argv[1];
     }
     std::cout << "\n";
+
+	if(!device.start_secure_session()){
+		return EXIT_FAILURE;
+	}
+
+	if(!device.close()){
+		return EXIT_FAILURE;
+	}
 
     return EXIT_SUCCESS;
 }
