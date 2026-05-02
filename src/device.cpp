@@ -1,4 +1,5 @@
 #include "device.hpp"
+#include "key.hpp"
 #include "libtropic.h"
 #include "libtropic_common.h"
 
@@ -64,7 +65,7 @@ static void append_u32(std::vector<uint8_t>& v, uint32_t val) {
     v.push_back(val & 0xFF);
 }
 
-std::string pubkey_to_ssh_ed25519(const std::vector<uint8_t>& pubkey) {
+std::string pubkey_to_ssh_ed25519(const std::array<uint8_t, ED25519_KEY_LEN>& pubkey) {
     std::vector<uint8_t> blob;
 
     std::string key_type = "ssh-ed25519";
@@ -212,21 +213,16 @@ bool Device::start_secure_session(){
 	return true;
 }
 
-bool Device::initialize_ed25519_key(lt_ecc_slot_t slot, std::vector<uint8_t>& pubkey){
+bool Device::initialize_ed25519_key(lt_ecc_slot_t slot, std::array<uint8_t, ED25519_KEY_LEN>& pubkey){
 	lt_ret_t ret = LT_OK;
 	lt_ecc_curve_type_t curve_type;
 	lt_ecc_key_origin_t origin_type;
-
-	if(pubkey.size() < ED25519_LEN){
-		std::cerr << "Pubkey storage is either uninitialized or too small, must be at least 32 bytes (32*uint8_t) long\n";
-		return false;
-	}
 
 	ret = lt_ecc_key_read(
 		&lt_handle, 
 		slot, 
 		pubkey.data(),
-		ED25519_LEN,
+		ED25519_KEY_LEN,
 		&curve_type,
 		&origin_type
 	);
@@ -259,21 +255,20 @@ bool Device::initialize_ed25519_key(lt_ecc_slot_t slot, std::vector<uint8_t>& pu
 	return true;
 }
 
-bool Device::read_ed25519_key(lt_ecc_slot_t slot, std::vector<uint8_t>& pubkey){
+bool Device::initialize_ed25519_key(Ed25519Key& key){
+	return initialize_ed25519_key(key.get_slot(), key.get_pubkey());
+}
+
+bool Device::read_ed25519_key(lt_ecc_slot_t slot, std::array<uint8_t, ED25519_KEY_LEN>& pubkey){
 	lt_ret_t ret = LT_OK;
 	lt_ecc_curve_type_t curve_type;
 	lt_ecc_key_origin_t origin_type;
-
-	if(pubkey.size() < ED25519_LEN){
-		std::cerr << "Pubkey storage is either uninitialized or too small, must be at least 32 bytes (32*uint8_t) long\n";
-		return false;
-	}
 
 	ret = lt_ecc_key_read(
 		&lt_handle, 
 		slot, 
 		pubkey.data(),
-		ED25519_LEN,
+		ED25519_KEY_LEN,
 		&curve_type,
 		&origin_type
 	);
@@ -289,6 +284,10 @@ bool Device::read_ed25519_key(lt_ecc_slot_t slot, std::vector<uint8_t>& pubkey){
 	}
 }
 
+bool Device::read_ed25519_key(Ed25519Key& key){
+    return read_ed25519_key(key.get_slot(), key.get_pubkey());
+}
+
 bool Device::erase_ed25519_key(lt_ecc_slot_t slot){
 	lt_ret_t ret = LT_OK;
 	ret = lt_ecc_key_erase(&lt_handle, slot);
@@ -298,6 +297,10 @@ bool Device::erase_ed25519_key(lt_ecc_slot_t slot){
 
 	std::cout << "Successfully erased ed25519 key in slot " << slot << "\n";
 	return true;
+}
+
+bool Device::erase_ed25519_key(Ed25519Key& key){
+    return erase_ed25519_key(key.get_slot());
 }
 
 bool Device::sign_ed25519_challenge(lt_ecc_slot_t slot, std::vector<uint8_t>& challenge, std::vector<uint8_t>& signature){
@@ -312,6 +315,10 @@ bool Device::sign_ed25519_challenge(lt_ecc_slot_t slot, std::vector<uint8_t>& ch
 	std::cout << "Successfully signed a challenge:\n\tChallenge (hex): " << to_hex(challenge) << "\n\tSignature (hex): " << to_hex(signature) << "\n";
 
 	return true;
+}
+
+bool Device::sign_ed25519_challenge(Ed25519Key key, std::vector<uint8_t>& challenge, std::vector<uint8_t>& signature){
+	return sign_ed25519_challenge(key.get_slot(), challenge, signature);
 }
 
 bool Device::print_info(std::ostream& out) {

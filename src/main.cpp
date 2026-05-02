@@ -8,6 +8,7 @@
 #include <sodium.h>
 
 #include "device.hpp"
+#include "key.hpp"
 
 #define CK_PTR *
 #define CK_DECLARE_FUNCTION(returnType, name) returnType name
@@ -36,7 +37,7 @@ std::vector<uint8_t> generate_challenge(size_t size = 32) {
 }
 
 bool verify_signature(
-    const std::vector<uint8_t>& pubkey,
+    const std::array<uint8_t, ED25519_KEY_LEN>& pubkey,
     const std::vector<uint8_t>& challenge,
     const std::vector<uint8_t>& signature)
 {
@@ -82,18 +83,36 @@ int main(int argc, char* argv[]) {
 		return EXIT_FAILURE;
 	}
 
-	lt_ecc_slot_t slot_write_to = TR01_ECC_SLOT_0;
-	std::vector<uint8_t> pubkey(ED25519_LEN, 0);
-	device.initialize_ed25519_key(slot_write_to, pubkey);
-	device.read_ed25519_key(slot_write_to, pubkey);
+	Ed25519Key key(TR01_ECC_SLOT_0);
+	device.initialize_ed25519_key(key);
+	device.read_ed25519_key(key);
 
-	auto challenge = generate_challenge();
+	auto challenge_1 = generate_challenge();
 
-	std::vector<uint8_t> signature;
+	std::vector<uint8_t> signature_1;
 
-	device.sign_ed25519_challenge(slot_write_to, challenge, signature);
+	device.sign_ed25519_challenge(key, challenge_1, signature_1);
 
-	if (verify_signature(pubkey, challenge, signature)) {
+	if (verify_signature(key.get_pubkey(), challenge_1, signature_1)) {
+		std::cout << "Signature VALID\n";
+	} else {
+		std::cout << "Signature INVALID\n";
+	}
+
+	std::cout << "============================\n";
+
+	lt_ecc_slot_t slot_write_to = TR01_ECC_SLOT_1;
+	std::array<uint8_t, ED25519_KEY_LEN> raw_pubkey{};
+	device.initialize_ed25519_key(slot_write_to, raw_pubkey);
+	device.read_ed25519_key(slot_write_to, raw_pubkey);
+
+	auto challenge_2 = generate_challenge();
+
+	std::vector<uint8_t> signature_2;
+
+	device.sign_ed25519_challenge(slot_write_to, challenge_2, signature_2);
+
+	if (verify_signature(raw_pubkey, challenge_2, signature_2)) {
 		std::cout << "Signature VALID\n";
 	} else {
 		std::cout << "Signature INVALID\n";

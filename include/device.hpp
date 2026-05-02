@@ -1,16 +1,16 @@
 #pragma once
 
 #include <iostream>
-#include <fstream>
 #include <cstring>
 #include <cstdarg>
 #include <vector>
+#include <array>
 
-#include "libtropic.h"
+#include "key.hpp"
 #include "libtropic_common.h"
 #include "libtropic_mbedtls_v4.h"
 #include "libtropic_port_posix_usb_dongle.h"
-#include "psa/crypto.h"
+
 
 struct lt_handle_t;
 struct lt_dev_posix_usb_dongle_t;
@@ -24,8 +24,6 @@ struct lt_ctx_mbedtls_v4_t;
 #define LT_EX_SH0_PRIV sh0priv_prod0
 #define LT_EX_SH0_PUB sh0pub_prod0
 #endif
-
-#define ED25519_LEN 32
 
 /**
  * TODO
@@ -45,11 +43,17 @@ public:
 	bool close();
 	bool start_secure_session();
 
-	bool initialize_ed25519_key(lt_ecc_slot_t slot, std::vector<uint8_t>& pubkey);
-	bool read_ed25519_key(lt_ecc_slot_t slot, std::vector<uint8_t>& pubkey);
+	bool initialize_ed25519_key(lt_ecc_slot_t slot, std::array<uint8_t, ED25519_KEY_LEN>& pubkey);
+	bool initialize_ed25519_key(Ed25519Key& key);
+
+	bool read_ed25519_key(lt_ecc_slot_t slot, std::array<uint8_t, ED25519_KEY_LEN>& pubkey);
+	bool read_ed25519_key(Ed25519Key& key);
+
 	bool erase_ed25519_key(lt_ecc_slot_t slot);
+	bool erase_ed25519_key(Ed25519Key& key);
 
 	bool sign_ed25519_challenge(lt_ecc_slot_t slot, std::vector<uint8_t>& challenge, std::vector<uint8_t>& signature);
+	bool sign_ed25519_challenge(Ed25519Key key, std::vector<uint8_t>& challenge, std::vector<uint8_t>& signature);
 
     bool print_info(std::ostream& out);
 

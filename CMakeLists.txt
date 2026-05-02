@@ -100,6 +100,7 @@ target_include_directories(tropic PUBLIC ${LT_HAL_INC_DIRS})
 
 set(PROJECT_SHARED_SOURCES
     src/device.cpp
+	src/key.cpp
     src/pkcs11_module.cpp
 )
 
