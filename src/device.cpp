@@ -232,7 +232,7 @@ bool Device::initialize_ed25519_key(lt_ecc_slot_t slot, std::vector<uint8_t>& pu
 		ret = lt_ecc_key_read(
 			&lt_handle, 
 			slot, 
-			reinterpret_cast<uint8_t*>(pubkey.data()),
+			pubkey.data(),
 			pubkey.size(),
 			&curve_type,
 			&origin_type
