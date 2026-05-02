@@ -5,6 +5,8 @@
 #include <cstdarg>
 #include <cstdio>
 #include <vector>
+#include <string>
+#include <cstdint>
 
 // global bridge for C callback
 static std::ostream* g_out = nullptr;
@@ -24,6 +26,60 @@ static int print_cb(const char* fmt, ...) {
 	return n;
 }
 
+static const char b64_table[] =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+std::string base64_encode(const std::vector<uint8_t>& data) {
+    std::string out;
+    size_t i = 0;
+    uint32_t buf = 0;
+    int bits = 0;
+
+    for (uint8_t byte : data) {
+        buf = (buf << 8) | byte;
+        bits += 8;
+
+        while (bits >= 6) {
+            bits -= 6;
+            out.push_back(b64_table[(buf >> bits) & 0x3F]);
+        }
+    }
+
+    if (bits > 0) {
+        buf <<= (6 - bits);
+        out.push_back(b64_table[buf & 0x3F]);
+    }
+
+    while (out.size() % 4) {
+        out.push_back('=');
+    }
+
+    return out;
+}
+
+static void append_u32(std::vector<uint8_t>& v, uint32_t val) {
+    v.push_back((val >> 24) & 0xFF);
+    v.push_back((val >> 16) & 0xFF);
+    v.push_back((val >> 8) & 0xFF);
+    v.push_back(val & 0xFF);
+}
+
+std::string pubkey_to_ssh_ed25519(const std::vector<uint8_t>& pubkey) {
+    std::vector<uint8_t> blob;
+
+    std::string key_type = "ssh-ed25519";
+
+    // string "ssh-ed25519"
+    append_u32(blob, key_type.size());
+    blob.insert(blob.end(), key_type.begin(), key_type.end());
+
+    // public key
+    append_u32(blob, pubkey.size());
+    blob.insert(blob.end(), pubkey.begin(), pubkey.end());
+
+    return "ssh-ed25519 " + base64_encode(blob);
+}
+
 const char* to_string(lt_ecc_curve_type_t type) {
     switch (type) {
         case TR01_CURVE_P256:   return "TR01_CURVE_P256";
@@ -39,6 +95,8 @@ const char* to_string(lt_ecc_key_origin_t type) {
         default: return "UNKNOWN_ORIGIN";
     }
 }
+
+
 
 Device::Device() {}
 
@@ -138,12 +196,12 @@ bool Device::start_secure_session(){
 	return true;
 }
 
-bool Device::initialize_ed25519_key(lt_ecc_slot_t slot, std::vector<uint8_t>* pubkey){
+bool Device::initialize_ed25519_key(lt_ecc_slot_t slot, std::vector<uint8_t>& pubkey){
 	lt_ret_t ret = LT_OK;
 	lt_ecc_curve_type_t curve_type;
 	lt_ecc_key_origin_t origin_type;
 
-	if(pubkey->size() < ED25519_LEN){
+	if(pubkey.size() < ED25519_LEN){
 		std::cerr << "Pubkey storage is either uninitialized or too small, must be at least 32 bytes (32*uint8_t) long\n";
 		return false;
 	}
@@ -151,7 +209,7 @@ bool Device::initialize_ed25519_key(lt_ecc_slot_t slot, std::vector<uint8_t>* pu
 	ret = lt_ecc_key_read(
 		&lt_handle, 
 		slot, 
-		pubkey->data(),
+		pubkey.data(),
 		ED25519_LEN,
 		&curve_type,
 		&origin_type
@@ -159,8 +217,8 @@ bool Device::initialize_ed25519_key(lt_ecc_slot_t slot, std::vector<uint8_t>* pu
 
 	if (LT_OK == ret) {
 		// slot already occupied
-		// TODO add more STATE return types
-		std::cout << "Key already exists ... public key: " << pubkey << "\n";
+		// TODO add more STATE return types, or maybe try-catch-throw everywhere
+		std::cout << "Key already exists in slot " << slot << " ... public key: " << pubkey_to_ssh_ed25519(pubkey)<< "\n";
 		return true;
 	} else {
 		// slot is empty, generate new
@@ -174,23 +232,23 @@ bool Device::initialize_ed25519_key(lt_ecc_slot_t slot, std::vector<uint8_t>* pu
 		ret = lt_ecc_key_read(
 			&lt_handle, 
 			slot, 
-			reinterpret_cast<uint8_t*>(pubkey->data()),
-			pubkey->size(),
+			reinterpret_cast<uint8_t*>(pubkey.data()),
+			pubkey.size(),
 			&curve_type,
 			&origin_type
 		);
-		std::cout << "public key: " << pubkey << "\n";
+		std::cout << "public key: " << pubkey_to_ssh_ed25519(pubkey) << "\n";
 	}
 
 	return true;
 }
 
-bool Device::read_ed25519_key(lt_ecc_slot_t slot, std::vector<uint8_t>* pubkey){
+bool Device::read_ed25519_key(lt_ecc_slot_t slot, std::vector<uint8_t>& pubkey){
 	lt_ret_t ret = LT_OK;
 	lt_ecc_curve_type_t curve_type;
 	lt_ecc_key_origin_t origin_type;
 
-	if(pubkey->size() < ED25519_LEN){
+	if(pubkey.size() < ED25519_LEN){
 		std::cerr << "Pubkey storage is either uninitialized or too small, must be at least 32 bytes (32*uint8_t) long\n";
 		return false;
 	}
@@ -198,7 +256,7 @@ bool Device::read_ed25519_key(lt_ecc_slot_t slot, std::vector<uint8_t>* pubkey){
 	ret = lt_ecc_key_read(
 		&lt_handle, 
 		slot, 
-		pubkey->data(),
+		pubkey.data(),
 		ED25519_LEN,
 		&curve_type,
 		&origin_type
@@ -206,7 +264,7 @@ bool Device::read_ed25519_key(lt_ecc_slot_t slot, std::vector<uint8_t>* pubkey){
 
 	if (LT_OK == ret) {
 		std::cout << "Key exists in slot " << slot << " ... public key: "
-			<< pubkey << "\n"
+			<< pubkey_to_ssh_ed25519(pubkey) << "\n"
 			<< "Key details:\n\t" << "Curve type: " << to_string(curve_type) << "\n\t" << "Origin: " << to_string(origin_type) << "\n";
 		return true;
 	} else {

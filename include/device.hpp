@@ -45,8 +45,8 @@ public:
 	bool start_secure_session();
 
 	// todo custom class for the key
-	bool initialize_ed25519_key(lt_ecc_slot_t slot, std::vector<uint8_t>* pubkey);
-	bool read_ed25519_key(lt_ecc_slot_t slot, std::vector<uint8_t>* pubkey);
+	bool initialize_ed25519_key(lt_ecc_slot_t slot, std::vector<uint8_t>& pubkey);
+	bool read_ed25519_key(lt_ecc_slot_t slot, std::vector<uint8_t>& pubkey);
 	bool erase_ed25519_key(lt_ecc_slot_t slot);
 
     bool print_info(std::ostream& out);
