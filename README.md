@@ -26,6 +26,22 @@ All necessary libraries to buld the project are already included in the repo. Th
 
 There are no unit tests at the moment and I'm mostly discovering how to actually test the pkcs#11 implementation using the `pkcs11-tool` and `ssh-keygen`. Both of these commands are available in the nix shell.
 
+# References
+
+Learning and reference materials I used while writing this...
+
+1. https://github.com/Pkcs11Interop/empty-pkcs11
+1. https://docs.oracle.com/en/java/javase/11/security/pkcs11-reference-guide1.html
+1. https://tropicsquare.github.io/libtropic/latest/tutorials/model/hw_wallet/
+1. https://tropicsquare.github.io/libtropic/latest/tutorials/linux/usb_devkit/full_chain_verification/
+1. https://tropicsquare.com/tropic01
+1. https://tropicsquare.github.io/libtropic/latest/reference/libtropic_architecture/
+1. https://docs.oasis-open.org/pkcs11/pkcs11-base/v2.40/os/pkcs11-base-v2.40-os.html
+1. https://tropicsquare.github.io/libtropic/latest/tutorials/linux/usb_devkit/
+1. https://tropicsquare.github.io/libtropic/latest/doxygen/build/html/
+1. https://cryptobook.nakov.com/
+1. https://cryptobook.nakov.com/digital-signatures/eddsa-and-ed25519
+
 ---
 
 [LICENSE](LICENSE)
