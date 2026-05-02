@@ -7,6 +7,7 @@ pkgs.mkShell {
 	gcc
 	gdb
 	cmake
+	libsodium
 
     openssh      
     opensc

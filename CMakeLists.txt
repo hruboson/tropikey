@@ -72,6 +72,10 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(mbedtls_v4)
 target_link_libraries(tropic PUBLIC mbedtls)
 
+# Sodium
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(SODIUM REQUIRED libsodium)
+
 ###########################################################################
 #                                                                         #
 #   CAL + HAL                                                             #
@@ -120,14 +124,14 @@ add_executable(${PROJECT_NAME}
     src/main.cpp
     ${PROJECT_SHARED_SOURCES}
 )
-target_include_directories(${PROJECT_NAME} PRIVATE ${PROJECT_INCLUDE_DIRS})
+target_include_directories(${PROJECT_NAME} PRIVATE ${PROJECT_INCLUDE_DIRS} ${SODIUM_INCLUDE_DIRS})
 set_target_properties(${PROJECT_NAME} PROPERTIES
     LINKER_LANGUAGE CXX
     OUTPUT_NAME "${PROJECT_NAME}.out"
 )
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE ${LT_COMMON_DEFS})
-target_link_libraries(${PROJECT_NAME} PRIVATE tropic)
+target_link_libraries(${PROJECT_NAME} PRIVATE tropic ${SODIUM_LIBRARIES})
 
 ###########################################################################
 #                                                                         #

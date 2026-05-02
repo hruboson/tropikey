@@ -96,6 +96,22 @@ const char* to_string(lt_ecc_key_origin_t type) {
     }
 }
 
+std::string to_hex(std::vector<uint8_t> const & v)
+{
+    std::string result;
+    result.reserve(4 * v.size() + 6);
+
+    for (uint8_t c : v)
+    {
+        static constexpr char alphabet[] = "0123456789ABCDEF";
+
+        result.push_back(alphabet[c / 16]);
+        result.push_back(alphabet[c % 16]);
+        result.push_back(' ');
+    }
+
+    return result;
+}
 
 
 Device::Device() {}
@@ -281,6 +297,20 @@ bool Device::erase_ed25519_key(lt_ecc_slot_t slot){
 	}
 
 	std::cout << "Successfully erased ed25519 key in slot " << slot << "\n";
+	return true;
+}
+
+bool Device::sign_ed25519_challenge(lt_ecc_slot_t slot, std::vector<uint8_t>& challenge, std::vector<uint8_t>& signature){
+	signature.resize(64);
+	lt_ret_t ret = LT_OK;
+
+	ret = lt_ecc_eddsa_sign(&lt_handle, slot, challenge.data(), challenge.size(), signature.data());
+	if (LT_OK != ret){
+		return fail("Failed to sign a challenge", ret);
+	}
+
+	std::cout << "Successfully signed a challenge:\n\tChallenge (hex): " << to_hex(challenge) << "\n\tSignature (hex): " << to_hex(signature) << "\n";
+
 	return true;
 }
 

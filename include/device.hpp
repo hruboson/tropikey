@@ -33,6 +33,7 @@ struct lt_ctx_mbedtls_v4_t;
  *	- proper check (and error message) for devkit connected to machine
  *	- proper chain of trust verification (https://tropicsquare.github.io/libtropic/latest/tutorials/linux/usb_devkit/full_chain_verification/)
  *	- relegate signing challenge
+ *	- class for representation of key pair (pubkey, slot for privkey, operations, representation, ...)
  */
 
 class Device {
@@ -44,10 +45,11 @@ public:
 	bool close();
 	bool start_secure_session();
 
-	// todo custom class for the key
 	bool initialize_ed25519_key(lt_ecc_slot_t slot, std::vector<uint8_t>& pubkey);
 	bool read_ed25519_key(lt_ecc_slot_t slot, std::vector<uint8_t>& pubkey);
 	bool erase_ed25519_key(lt_ecc_slot_t slot);
+
+	bool sign_ed25519_challenge(lt_ecc_slot_t slot, std::vector<uint8_t>& challenge, std::vector<uint8_t>& signature);
 
     bool print_info(std::ostream& out);
 
