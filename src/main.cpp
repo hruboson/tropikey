@@ -83,6 +83,8 @@ int main(int argc, char* argv[]) {
 		return EXIT_FAILURE;
 	}
 
+	std::cout << "============================\n";
+
 	Ed25519Key key(TR01_ECC_SLOT_0);
 	device.initialize_ed25519_key(key);
 	device.read_ed25519_key(key);

@@ -22,6 +22,5 @@ class Ed25519Key {
 
 	private:
 		lt_ecc_slot_t slot;
-		bool initialized;
 		std::array<uint8_t, ED25519_KEY_LEN> pubkey{}; // initialized to zeros
 };
