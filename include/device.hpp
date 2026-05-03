@@ -3,6 +3,7 @@
 #include <iostream>
 #include <cstring>
 #include <cstdarg>
+#include <optional>
 #include <vector>
 #include <array>
 
@@ -54,12 +55,15 @@ public:
 
 	bool read_ed25519_key(lt_ecc_slot_t slot, std::array<uint8_t, ED25519_KEY_LEN>& pubkey);
 	bool read_ed25519_key(Ed25519Key& key);
+	std::optional<Ed25519Key> read_ed25519_key(lt_ecc_slot_t slot); // internal silent use
 
 	bool erase_ed25519_key(lt_ecc_slot_t slot);
 	bool erase_ed25519_key(Ed25519Key& key);
 
 	bool sign_ed25519_challenge(lt_ecc_slot_t slot, std::vector<uint8_t>& challenge, std::vector<uint8_t>& signature);
 	bool sign_ed25519_challenge(Ed25519Key key, std::vector<uint8_t>& challenge, std::vector<uint8_t>& signature);
+
+	std::vector<Ed25519Key> list_ed25519_keys();
 
     bool print_info(std::ostream& out);
 	const Version& get_hw_version() const { return hw_version; }

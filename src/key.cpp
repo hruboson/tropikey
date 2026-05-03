@@ -46,26 +46,6 @@ Ed25519Key::Ed25519Key(lt_ecc_slot_t slot){
 	this->slot = slot;
 }
 
-uint8_t* Ed25519Key::data() {
-    return pubkey.data();
-}
-
-const uint8_t* Ed25519Key::data() const {
-    return pubkey.data();
-}
-
-std::array<uint8_t, ED25519_KEY_LEN>& Ed25519Key::get_pubkey() {
-    return pubkey;
-}
-
-const std::array<uint8_t, ED25519_KEY_LEN>& Ed25519Key::get_pubkey() const {
-    return pubkey;
-}
-
-lt_ecc_slot_t Ed25519Key::get_slot() const {
-    return slot;
-}
-
 std::string Ed25519Key::to_ssh_ed25519() {
     std::vector<uint8_t> blob;
 

@@ -21,7 +21,9 @@
 
 
 #include "pkcs11_module.hpp"
+#include "key.hpp"
 #include "pkcs11t.h"
+#include <algorithm>
 #include <cstring>
 #include <mutex>
 
@@ -221,20 +223,24 @@ CK_DEFINE_FUNCTION(CK_RV, C_Initialize)(CK_VOID_PTR pInitArgs)
 {
 	// pInitArgs - tells pkcs how to use multithreading
 	// Initialize memory buffer - done
-	// Detect available slots - maybe?
 	
-	std::lock_guard<std::mutex> lock(MODULE.mtx);
-	
-	if(MODULE.initialized) return CKR_CRYPTOKI_ALREADY_INITIALIZED;
+    UNUSED(pInitArgs);
 
-	MODULE.device.emplace(); // construct the Device object
-	if(!MODULE.device->init() || !MODULE.device->start_secure_session()){
-		MODULE.device.reset(); // destroy Device object
-		return CKR_DEVICE_ERROR;
-	}
+    std::lock_guard<std::mutex> lock(MODULE.mtx);
+    if (MODULE.initialized) return CKR_CRYPTOKI_ALREADY_INITIALIZED;
 
-	MODULE.initialized = true;
-	return CKR_OK;
+    MODULE.device.emplace();  // construct Device in-place inside the optional
+    if (!MODULE.device->init()) {
+        MODULE.device.reset();
+        return CKR_DEVICE_ERROR;
+    }
+    if (!MODULE.device->start_secure_session()) {
+        MODULE.device.reset();
+        return CKR_DEVICE_ERROR;
+    }
+
+    MODULE.initialized = true;
+    return CKR_OK;
 }
 
 
@@ -248,6 +254,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_Finalize)(CK_VOID_PTR pReserved)
 
     MODULE.device->close();
     MODULE.device.reset();
+    MODULE.key_cache.reset();
     MODULE.initialized = false;
 
 	return CKR_OK;
@@ -327,8 +334,14 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetSlotInfo)(CK_SLOT_ID slotID, CK_SLOT_INFO_PTR pIn
 	memcpy(pInfo->manufacturerID,  mfr,  strlen(mfr));
 
 	pInfo->flags = CKF_HW_SLOT | (MODULE.initialized ? CKF_TOKEN_PRESENT : 0);
-	pInfo->hardwareVersion = to_ck_version(MODULE.device->get_hw_version());
-	pInfo->firmwareVersion = to_ck_version(MODULE.device->get_fw_version());
+
+    if (MODULE.initialized) {
+        pInfo->hardwareVersion = to_ck_version(MODULE.device->get_hw_version());
+        pInfo->firmwareVersion = to_ck_version(MODULE.device->get_fw_version());
+    } else {
+        pInfo->hardwareVersion = {0, 0};
+        pInfo->firmwareVersion = {0, 0};
+    }
 
 	return CKR_OK;
 }
@@ -375,30 +388,49 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetTokenInfo)(CK_SLOT_ID slotID, CK_TOKEN_INFO_PTR p
     pInfo->ulFreePrivateMemory  = CK_UNAVAILABLE_INFORMATION;
 
     // TODO serial number from chip_id
-    pInfo->hardwareVersion = to_ck_version(MODULE.device->get_hw_version());
-    pInfo->firmwareVersion = to_ck_version(MODULE.device->get_fw_version());
-
+    if (MODULE.initialized) {
+        pInfo->hardwareVersion = to_ck_version(MODULE.device->get_hw_version());
+        pInfo->firmwareVersion = to_ck_version(MODULE.device->get_fw_version());
+    } else {
+        pInfo->hardwareVersion = {0, 0};
+        pInfo->firmwareVersion = {0, 0};
+    }
     return CKR_OK;
 }
 
 
 CK_DEFINE_FUNCTION(CK_RV, C_GetMechanismList)(CK_SLOT_ID slotID, CK_MECHANISM_TYPE_PTR pMechanismList, CK_ULONG_PTR pulCount)
 {
-	UNUSED(slotID);
-	UNUSED(pMechanismList);
-	UNUSED(pulCount);
+    if (slotID != 0)  return CKR_SLOT_ID_INVALID;
+    if (!pulCount)    return CKR_ARGUMENTS_BAD;
 
-	return CKR_FUNCTION_NOT_SUPPORTED;
+    // only Ed25519 signing for now
+    if (!pMechanismList) {
+        *pulCount = 1;
+        return CKR_OK;
+    }
+
+    if (*pulCount < 1) return CKR_BUFFER_TOO_SMALL;
+
+    pMechanismList[0] = CKM_EDDSA;
+    *pulCount = 1;
+    return CKR_OK;
 }
 
 
 CK_DEFINE_FUNCTION(CK_RV, C_GetMechanismInfo)(CK_SLOT_ID slotID, CK_MECHANISM_TYPE type, CK_MECHANISM_INFO_PTR pInfo)
 {
-	UNUSED(slotID);
-	UNUSED(type);
-	UNUSED(pInfo);
+    if (slotID != 0) return CKR_SLOT_ID_INVALID;
+    if (!pInfo)      return CKR_ARGUMENTS_BAD;
 
-	return CKR_FUNCTION_NOT_SUPPORTED;
+    if (type != CKM_EDDSA)
+        return CKR_MECHANISM_INVALID;
+
+    pInfo->ulMinKeySize = 255;  // Ed25519 key size in bits
+    pInfo->ulMaxKeySize = 255;
+    pInfo->flags        = CKF_SIGN | CKF_HW;
+
+    return CKR_OK;
 }
 
 
@@ -440,13 +472,26 @@ CK_DEFINE_FUNCTION(CK_RV, C_OpenSession)(CK_SLOT_ID slotID, CK_FLAGS flags, CK_V
 	// opens session between application and a slot
 	// slot must contain key in it
 
-	UNUSED(slotID);
-	UNUSED(flags);
-	UNUSED(pApplication);
-	UNUSED(Notify);
-	UNUSED(phSession);
+    UNUSED(pApplication);
+    UNUSED(Notify);
 
-	return CKR_FUNCTION_NOT_SUPPORTED;
+    if (slotID != 0)         return CKR_SLOT_ID_INVALID;
+    if (!phSession)          return CKR_ARGUMENTS_BAD;
+    if (!MODULE.initialized) return CKR_CRYPTOKI_NOT_INITIALIZED;
+
+    // PKCS#11 requires CKF_SERIAL_SESSION to always be set
+    if (!(flags & CKF_SERIAL_SESSION))
+        return CKR_SESSION_PARALLEL_NOT_SUPPORTED;
+
+    std::lock_guard<std::mutex> lock(MODULE.mtx);
+
+    if (MODULE.session_open)
+        return CKR_SESSION_COUNT; // only supporting one session
+
+    MODULE.session_open = true;
+    *phSession = 1; // only one session - fixed value
+
+    return CKR_OK;
 }
 
 
@@ -454,28 +499,41 @@ CK_DEFINE_FUNCTION(CK_RV, C_CloseSession)(CK_SESSION_HANDLE hSession)
 {
 	// close an open session on a token, once session is closed app cannot pass any cryptographic request to a token
 
-	UNUSED(hSession);
+    if (hSession != 1)       return CKR_SESSION_HANDLE_INVALID;
+    if (!MODULE.initialized) return CKR_CRYPTOKI_NOT_INITIALIZED;
 
-	return CKR_FUNCTION_NOT_SUPPORTED;
+    std::lock_guard<std::mutex> lock(MODULE.mtx);
+    MODULE.session_open = false;
+    return CKR_OK;
 }
 
 
 CK_DEFINE_FUNCTION(CK_RV, C_CloseAllSessions)(CK_SLOT_ID slotID)
 {
 	// close any open session on a token
-	
-	UNUSED(slotID);
+	// since only one session is supported close that one session
 
-	return CKR_FUNCTION_NOT_SUPPORTED;
+	if (slotID != 0)         return CKR_SLOT_ID_INVALID;
+    if (!MODULE.initialized) return CKR_CRYPTOKI_NOT_INITIALIZED;
+
+    std::lock_guard<std::mutex> lock(MODULE.mtx);
+    MODULE.session_open = false;
+    return CKR_OK;
 }
 
 
 CK_DEFINE_FUNCTION(CK_RV, C_GetSessionInfo)(CK_SESSION_HANDLE hSession, CK_SESSION_INFO_PTR pInfo)
 {
-	UNUSED(hSession);
-	UNUSED(pInfo);
+    if (hSession != 1)       return CKR_SESSION_HANDLE_INVALID;
+    if (!MODULE.initialized) return CKR_CRYPTOKI_NOT_INITIALIZED;
+    if (!pInfo)              return CKR_ARGUMENTS_BAD;
 
-	return CKR_FUNCTION_NOT_SUPPORTED;
+    pInfo->slotID        = 0;
+    pInfo->state         = CKS_RO_PUBLIC_SESSION; // read-only, no PIN required
+    pInfo->flags         = CKF_SERIAL_SESSION;
+    pInfo->ulDeviceError = 0;
+
+    return CKR_OK;
 }
 
 
@@ -505,12 +563,18 @@ CK_DEFINE_FUNCTION(CK_RV, C_Login)(CK_SESSION_HANDLE hSession, CK_USER_TYPE user
 {
 	// authenticates an user
 
-	UNUSED(hSession);
-	UNUSED(userType);
 	UNUSED(pPin);
 	UNUSED(ulPinLen);
 
-	return CKR_FUNCTION_NOT_SUPPORTED;
+    if (hSession != 1)       return CKR_SESSION_HANDLE_INVALID;
+    if (!MODULE.initialized) return CKR_CRYPTOKI_NOT_INITIALIZED;
+
+    // only CKU_USER, reject SO (security officer) login
+    if (userType != CKU_USER) return CKR_USER_TYPE_INVALID;
+
+    // authentication is handled by the hardware during C_Initialize,
+    // so from PKCS#11's perspective we're always "logged in"
+    return CKR_OK;
 }
 
 
@@ -518,9 +582,10 @@ CK_DEFINE_FUNCTION(CK_RV, C_Logout)(CK_SESSION_HANDLE hSession)
 {
 	// logs out user from a token
 
-	UNUSED(hSession);
+    if (hSession != 1)       return CKR_SESSION_HANDLE_INVALID;
+    if (!MODULE.initialized) return CKR_CRYPTOKI_NOT_INITIALIZED;
 
-	return CKR_FUNCTION_NOT_SUPPORTED;
+    return CKR_OK;
 }
 
 
@@ -568,13 +633,119 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetObjectSize)(CK_SESSION_HANDLE hSession, CK_OBJECT
 
 CK_DEFINE_FUNCTION(CK_RV, C_GetAttributeValue)(CK_SESSION_HANDLE hSession, CK_OBJECT_HANDLE hObject, CK_ATTRIBUTE_PTR pTemplate, CK_ULONG ulCount)
 {
-	UNUSED(hSession);
-	UNUSED(hObject);
-	UNUSED(pTemplate);
-	UNUSED(ulCount);
+    if (hSession != 1)       return CKR_SESSION_HANDLE_INVALID;
+    if (!MODULE.initialized) return CKR_CRYPTOKI_NOT_INITIALIZED;
+    if (!pTemplate)          return CKR_ARGUMENTS_BAD;
 
-	return CKR_FUNCTION_NOT_SUPPORTED;
-}
+    lt_ecc_slot_t slot = handle_to_slot(hObject);  // decode slot from handle
+    bool          priv = is_privkey(hObject);       // decode key type from handle
+
+    auto key_it = std::find_if(
+        MODULE.get_keys().begin(),
+        MODULE.get_keys().end(),
+        [slot](const Ed25519Key& k) { return k.get_slot() == slot; });
+
+    if (key_it == MODULE.get_keys().end())
+        return CKR_OBJECT_HANDLE_INVALID;
+
+    const Ed25519Key& key = *key_it;  // reference, not optional — use key.data()
+
+    auto fill = [](CK_ATTRIBUTE_PTR attr, const void* data, CK_ULONG len) -> CK_RV {
+        if (!attr->pValue) {
+            attr->ulValueLen = len;
+            return CKR_OK;
+        }
+        if (attr->ulValueLen < len) {
+            attr->ulValueLen = CK_UNAVAILABLE_INFORMATION;
+            return CKR_BUFFER_TOO_SMALL;
+        }
+        memcpy(attr->pValue, data, len);
+        attr->ulValueLen = len;
+        return CKR_OK;
+    };
+
+    CK_RV result = CKR_OK;
+
+    for (CK_ULONG i = 0; i < ulCount; i++) {
+        CK_RV rv = CKR_OK;
+
+        switch (pTemplate[i].type) {
+        case CKA_CLASS: {
+            CK_OBJECT_CLASS cls = priv ? CKO_PRIVATE_KEY : CKO_PUBLIC_KEY;
+            rv = fill(&pTemplate[i], &cls, sizeof(cls));
+            break;
+        }
+        case CKA_KEY_TYPE: {
+            CK_KEY_TYPE kt = CKK_EC_EDWARDS;
+            rv = fill(&pTemplate[i], &kt, sizeof(kt));
+            break;
+        }
+        case CKA_ID: {
+            uint8_t id = (uint8_t)slot;
+            rv = fill(&pTemplate[i], &id, sizeof(id));
+            break;
+        }
+        case CKA_SIGN: {
+            CK_BBOOL val = priv ? CK_TRUE : CK_FALSE;
+            rv = fill(&pTemplate[i], &val, sizeof(val));
+            break;
+        }
+        case CKA_VERIFY: {
+            CK_BBOOL val = priv ? CK_FALSE : CK_TRUE;
+            rv = fill(&pTemplate[i], &val, sizeof(val));
+            break;
+        }
+        case CKA_EC_POINT: {
+            rv = fill(&pTemplate[i], key.data(), ED25519_KEY_LEN);  // key.data() not key->data()
+            break;
+        }
+        case CKA_EC_PARAMS: {
+            static const uint8_t oid[] = {0x06, 0x03, 0x2B, 0x65, 0x70};
+            rv = fill(&pTemplate[i], oid, sizeof(oid));
+            break;
+        }
+        case CKA_PRIVATE: {
+            CK_BBOOL val = priv ? CK_TRUE : CK_FALSE;
+            rv = fill(&pTemplate[i], &val, sizeof(val));
+            break;
+        }
+        case CKA_TOKEN: {
+            CK_BBOOL val = CK_TRUE;
+            rv = fill(&pTemplate[i], &val, sizeof(val));
+            break;
+        }
+        case CKA_LABEL: {
+            std::string label = "TROPIC01 Ed25519 key slot " + std::to_string((int)slot);
+            rv = fill(&pTemplate[i], label.c_str(), label.size());
+            break;
+        }
+        case CKA_SENSITIVE: {
+            CK_BBOOL val = priv ? CK_TRUE : CK_FALSE;
+            rv = fill(&pTemplate[i], &val, sizeof(val));
+            break;
+        }
+        case CKA_EXTRACTABLE: {
+            CK_BBOOL val = CK_FALSE;
+            rv = fill(&pTemplate[i], &val, sizeof(val));
+            break;
+        }
+        case CKA_ALWAYS_AUTHENTICATE: {
+            CK_BBOOL val = CK_FALSE;
+            rv = fill(&pTemplate[i], &val, sizeof(val));
+            break;
+        }
+        default:
+            std::cerr << "C_GetAttributeValue: unknown attribute 0x"
+                      << std::hex << pTemplate[i].type << "\n";
+            pTemplate[i].ulValueLen = CK_UNAVAILABLE_INFORMATION;
+            rv = CKR_ATTRIBUTE_TYPE_INVALID;
+            break;
+        }
+
+        if (rv != CKR_OK) result = rv;
+    }
+
+    return result;}
 
 
 CK_DEFINE_FUNCTION(CK_RV, C_SetAttributeValue)(CK_SESSION_HANDLE hSession, CK_OBJECT_HANDLE hObject, CK_ATTRIBUTE_PTR pTemplate, CK_ULONG ulCount)
@@ -590,30 +761,61 @@ CK_DEFINE_FUNCTION(CK_RV, C_SetAttributeValue)(CK_SESSION_HANDLE hSession, CK_OB
 
 CK_DEFINE_FUNCTION(CK_RV, C_FindObjectsInit)(CK_SESSION_HANDLE hSession, CK_ATTRIBUTE_PTR pTemplate, CK_ULONG ulCount)
 {
-	UNUSED(hSession);
-	UNUSED(pTemplate);
-	UNUSED(ulCount);
+	if (hSession != 1)       return CKR_SESSION_HANDLE_INVALID;
+    if (!MODULE.initialized) return CKR_CRYPTOKI_NOT_INITIALIZED;
+    if (MODULE.find_active)  return CKR_OPERATION_ACTIVE;
 
-	return CKR_FUNCTION_NOT_SUPPORTED;
+    std::lock_guard<std::mutex> lock(MODULE.mtx);
+
+    CK_OBJECT_CLASS wanted_class = (CK_OBJECT_CLASS)-1;
+    for (CK_ULONG i = 0; i < ulCount; i++) {
+        if (pTemplate[i].type == CKA_CLASS && pTemplate[i].pValue)
+            wanted_class = *(CK_OBJECT_CLASS*)pTemplate[i].pValue;
+    }
+
+    MODULE.found_objects.clear();
+
+    for (const auto& key : MODULE.get_keys()) {  // uses cache
+        if (wanted_class == (CK_OBJECT_CLASS)-1 || wanted_class == CKO_PUBLIC_KEY)
+            MODULE.found_objects.push_back(pubkey_handle(key.get_slot()));
+        if (wanted_class == (CK_OBJECT_CLASS)-1 || wanted_class == CKO_PRIVATE_KEY)
+            MODULE.found_objects.push_back(privkey_handle(key.get_slot()));
+    }
+
+    MODULE.find_index  = 0;
+    MODULE.find_active = true;
+    return CKR_OK;
 }
-
 
 CK_DEFINE_FUNCTION(CK_RV, C_FindObjects)(CK_SESSION_HANDLE hSession, CK_OBJECT_HANDLE_PTR phObject, CK_ULONG ulMaxObjectCount, CK_ULONG_PTR pulObjectCount)
 {
-	UNUSED(hSession);
-	UNUSED(phObject);
-	UNUSED(ulMaxObjectCount);
-	UNUSED(pulObjectCount);
+    if (hSession != 1)       return CKR_SESSION_HANDLE_INVALID;
+    if (!MODULE.initialized) return CKR_CRYPTOKI_NOT_INITIALIZED;
+    if (!MODULE.find_active) return CKR_OPERATION_NOT_INITIALIZED;
+    if (!phObject || !pulObjectCount) return CKR_ARGUMENTS_BAD;
 
-	return CKR_FUNCTION_NOT_SUPPORTED;
+    std::lock_guard<std::mutex> lock(MODULE.mtx);
+
+    CK_ULONG count = 0;
+    while (count < ulMaxObjectCount && MODULE.find_index < MODULE.found_objects.size()) {
+        phObject[count++] = MODULE.found_objects[MODULE.find_index++];
+    }
+
+    *pulObjectCount = count;
+    return CKR_OK;
 }
 
 
 CK_DEFINE_FUNCTION(CK_RV, C_FindObjectsFinal)(CK_SESSION_HANDLE hSession)
 {
-	UNUSED(hSession);
+    if (hSession != 1)       return CKR_SESSION_HANDLE_INVALID;
+    if (!MODULE.initialized) return CKR_CRYPTOKI_NOT_INITIALIZED;
+    if (!MODULE.find_active) return CKR_OPERATION_NOT_INITIALIZED;
 
-	return CKR_FUNCTION_NOT_SUPPORTED;
+    std::lock_guard<std::mutex> lock(MODULE.mtx);
+    MODULE.find_active = false;
+    MODULE.found_objects.clear();
+    return CKR_OK;
 }
 
 
@@ -757,23 +959,56 @@ CK_DEFINE_FUNCTION(CK_RV, C_DigestFinal)(CK_SESSION_HANDLE hSession, CK_BYTE_PTR
 
 CK_DEFINE_FUNCTION(CK_RV, C_SignInit)(CK_SESSION_HANDLE hSession, CK_MECHANISM_PTR pMechanism, CK_OBJECT_HANDLE hKey)
 {
-	UNUSED(hSession);
-	UNUSED(pMechanism);
-	UNUSED(hKey);
+    if (hSession != 1)       return CKR_SESSION_HANDLE_INVALID;
+    if (!MODULE.initialized) return CKR_CRYPTOKI_NOT_INITIALIZED;
+    if (!pMechanism)         return CKR_ARGUMENTS_BAD;
+    if (MODULE.sign_active)  return CKR_OPERATION_ACTIVE;
 
-	return CKR_FUNCTION_NOT_SUPPORTED;
+    if (pMechanism->mechanism != CKM_EDDSA)
+        return CKR_MECHANISM_INVALID;
+
+    if (!is_privkey(hKey))
+        return CKR_KEY_TYPE_INCONSISTENT;
+
+    std::lock_guard<std::mutex> lock(MODULE.mtx);
+    MODULE.sign_key_slot = handle_to_slot(hKey);
+    MODULE.sign_active   = true;
+    return CKR_OK;
 }
 
 
 CK_DEFINE_FUNCTION(CK_RV, C_Sign)(CK_SESSION_HANDLE hSession, CK_BYTE_PTR pData, CK_ULONG ulDataLen, CK_BYTE_PTR pSignature, CK_ULONG_PTR pulSignatureLen)
 {
-	UNUSED(hSession);
-	UNUSED(pData);
-	UNUSED(ulDataLen);
-	UNUSED(pSignature);
-	UNUSED(pulSignatureLen);
+	if (hSession != 1)        return CKR_SESSION_HANDLE_INVALID;
+    if (!MODULE.initialized)  return CKR_CRYPTOKI_NOT_INITIALIZED;
+    if (!MODULE.sign_active)  return CKR_OPERATION_NOT_INITIALIZED;
+    if (!pData || !pulSignatureLen) return CKR_ARGUMENTS_BAD;
 
-	return CKR_FUNCTION_NOT_SUPPORTED;
+    // two-pass: first call with pSignature=NULL returns required length
+    if (!pSignature) {
+        *pulSignatureLen = 64;
+        return CKR_OK;
+    }
+
+    if (*pulSignatureLen < 64) {
+        *pulSignatureLen = 64;
+        return CKR_BUFFER_TOO_SMALL;
+    }
+
+    std::lock_guard<std::mutex> lock(MODULE.mtx);
+
+    std::vector<uint8_t> challenge(pData, pData + ulDataLen);
+    std::vector<uint8_t> signature;
+
+    if (!MODULE.device->sign_ed25519_challenge(MODULE.sign_key_slot, challenge, signature)) {
+        MODULE.sign_active = false;
+        return CKR_DEVICE_ERROR;
+    }
+
+    memcpy(pSignature, signature.data(), 64);
+    *pulSignatureLen   = 64;
+    MODULE.sign_active = false; // operation complete, reset state
+    return CKR_OK;
 }
 
 

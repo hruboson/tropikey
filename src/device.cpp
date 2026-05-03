@@ -349,6 +349,35 @@ bool Device::sign_ed25519_challenge(Ed25519Key key, std::vector<uint8_t>& challe
 	return sign_ed25519_challenge(key.get_slot(), challenge, signature);
 }
 
+std::optional<Ed25519Key> Device::read_ed25519_key(lt_ecc_slot_t slot) {
+    Ed25519Key key(slot);
+    lt_ret_t ret = lt_ecc_key_read(
+        &lt_handle,
+        slot,
+        key.data(),
+        ED25519_KEY_LEN,
+        key.curve_ptr(),
+        key.origin_ptr());
+
+    if (LT_OK != ret) return std::nullopt;
+    return key;
+}
+
+std::vector<Ed25519Key> Device::list_ed25519_keys() {
+    std::vector<Ed25519Key> keys;
+    for (int s = 0; s < 32; s++) {
+        std::cerr << "scanning slot " << s << "...\n";
+        auto key = read_ed25519_key((lt_ecc_slot_t)s);
+        if (key) {
+            std::cerr << "  found key in slot " << s << "\n";
+            keys.push_back(std::move(*key));
+        } else {
+            std::cerr << "  slot " << s << " empty\n";
+        }
+    }
+    return keys;
+}
+
 bool Device::print_info(std::ostream& out) {
 	g_out = &out;
 
