@@ -27,11 +27,8 @@ struct lt_ctx_mbedtls_v4_t;
 
 /**
  * TODO
- *	- query for empty slots (maybe interactive mode where user is prompted to allow initializing new key in empty slot or rewriting any of the 32 slots)
  *	- proper check (and error message) for devkit connected to machine
- *	- proper chain of trust verification (https://tropicsquare.github.io/libtropic/latest/tutorials/linux/usb_devkit/full_chain_verification/)
- *	- relegate signing challenge
- *	- class for representation of key pair (pubkey, slot for privkey, operations, representation, ...)
+ *	- proper chain of trust verification
  */
 
 struct Version {

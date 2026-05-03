@@ -9,22 +9,64 @@ I was fortunate enough to stumble upon an interesting presentation by [Ondřej V
 
 ## PKCS#11
 
-The general flow of PKCS #11 functions:
-1. C_GetFunctionList
-2. C_Initialize
-3. C_GetSlotList
-4. C_OpenSession
-5. C_Login
-6. C_Logout
-7. C_CloseSession
-8. C_Finalize
+PKCS#11 (also known as *Cryptoki*) is a standardized API for interacting with cryptographic tokens such as hardware security modules (HSMs), smart cards, or custom devices. Instead of accessing private keys directly, applications use this interface to perform cryptographic operations (e.g. signing) inside a secure device.
+
+The main advantage of PKCS#11 is that **private keys never leave the device**. This provides strong security guarantees and allows integration with existing software like OpenSSH, browsers, or TLS libraries without modifying them.
+
+In the context of SSH, PKCS#11 enables hardware-backed authentication: the SSH client requests a signature, and the device performs it internally, preventing key extraction.
+
+### General flow of PKCS#11 functions
+
+1. `C_GetFunctionList` – obtain the function table exported by the module
+2. `C_Initialize` – initialize PKCS#11 library
+3. `C_GetSlotList` – enumerate available token slots/devices
+4. `C_OpenSession` – open a session with a selected slot
+5. `C_Login` – authenticate to the token (e.g. PIN, if required)
+6. `C_Logout` – end authenticated session
+7. `C_CloseSession` – close the session
+8. `C_Finalize` – clean up and shut down the library
+
+# Usage
+
+So far I have only tried this on NixOS. This repo contains a `flake.nix` so you can add this to your flake based config as an input.
+
+```
+inputs = {
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-25.11";
+    tropikey = {
+        url = "github:hruboson/tropikey";
+        inputs.nixpkgs.follows = "nixpkgs";
+    };
+};
+
+```
+
+Then simply enable it in your config:
+
+```
+imports = [
+    inputs.tropikey.nixosModules.default
+];
+
+programs.tropikey = {
+    enable = true; # get the tropikey binary to test the USB devkit
+    enableSshPkcs11 = true; # automatically integrates with the system-wide ssh config
+};
+```
+
+You can find example usage in my [NixOS configuration repo](https://github.com/hruboson/nixos-conf/blob/parts/parts/services/tropikey.nix)|[flake.nix](https://github.com/hruboson/nixos-conf/blob/parts/flake.nix) (`parts` branch).
 
 ## Build
 
-Using Nix:
-- `nix-shell` to get into the development environment
-- `make build` to generate the `.so` library implementation for your ssh agent
-- `make run` to run the sample program (good to check communication with the USB dev kit)
+- Using Nix:
+    - `nix-shell` or `nix develop` to get into the development environment.
+    - `nix build` to build the app and PKCS#11 `.so` library object.
+
+- Without Nix:
+    - Install CMake and Make. Optionally openssh and pkcs11-tools for testing.
+    - Download mbedtls and libsodium libraries.
+    - `make build` to generate the `.so` library implementation for your ssh agent.
+    - `make run` to run the sample program (good to check communication with the USB dev kit).
 
 ### Libraries used
 
@@ -53,6 +95,9 @@ Learning and reference materials I used while writing this...
 1. https://tropicsquare.github.io/libtropic/latest/doxygen/build/html/
 1. https://cryptobook.nakov.com/
 1. https://cryptobook.nakov.com/digital-signatures/eddsa-and-ed25519
+1. https://www.youtube.com/watch?v=KrfRfQlE5k0
+1. https://www.cryptsoft.com/pkcs11doc/
+1. https://www.youtube.com/watch?v=zTt9wp5vXDE
 
 ---
 

@@ -79,6 +79,12 @@
 #include <mutex>
 #include <optional>
 
+/**
+ * TODO
+ *	- remove logs
+ *	- implement rest of the functions (currently bare minimum for ssh)
+ */
+
 // module-level state shared across all C_* functions
 struct Pkcs11Module {
     std::mutex mtx;
