@@ -1,7 +1,7 @@
 BUILD_DIR 		:= build
 PROJECT			:= tropikey
 
-BINARY_NAME		:= $(PROJECT).out
+BINARY_NAME		:= $(PROJECT)
 BINARY    		:= $(BUILD_DIR)/$(BINARY_NAME)
 
 PKCS_SO_NAME	:= $(PROJECT)_pkcs11.so

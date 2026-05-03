@@ -7,6 +7,7 @@ pkgs.mkShell {
 	gcc
 	gdb
 	cmake
+	mbedtls
 	libsodium
 
     openssh      
@@ -17,6 +18,7 @@ pkgs.mkShell {
 
   nativeBuildInputs = with pkgs; [
 	cmake
+	mbedtls
 	pkg-config
   ];
 

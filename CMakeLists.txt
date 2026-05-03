@@ -1,5 +1,4 @@
 cmake_minimum_required(VERSION 3.21.0)
-include(FetchContent)
 
 project(tropikey LANGUAGES C CXX)
 
@@ -7,6 +6,9 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
 # Build type default
 if(NOT CMAKE_BUILD_TYPE)
@@ -62,15 +64,18 @@ target_compile_options(tropic PRIVATE -ffunction-sections -fdata-sections)
 ###########################################################################
 
 # MbedTLS v4.0.0
-set(ENABLE_TESTING OFF CACHE BOOL "Disable mbedtls_v4 test building.")
-set(ENABLE_PROGRAMS OFF CACHE BOOL "Disable mbedtls_v4 examples building.")
-FetchContent_Declare(
-    mbedtls_v4
-    URL https://github.com/Mbed-TLS/mbedtls/releases/download/mbedtls-4.0.0/mbedtls-4.0.0.tar.bz2
-    URL_HASH SHA256=2f3a47f7b3a541ddef450e4867eeecb7ce2ef7776093f3a11d6d43ead6bf2827
-)
-FetchContent_MakeAvailable(mbedtls_v4)
-target_link_libraries(tropic PUBLIC mbedtls)
+find_package(MbedTLS QUIET)
+
+if(MbedTLS_FOUND)
+    target_link_libraries(tropic PUBLIC MbedTLS::mbedtls)
+else()
+    # fallback: pkg-config
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(MBEDTLS REQUIRED mbedtls)
+    target_include_directories(tropic PUBLIC ${MBEDTLS_INCLUDE_DIRS})
+    target_link_libraries(tropic PUBLIC ${MBEDTLS_LIBRARIES})
+    target_link_directories(tropic PUBLIC ${MBEDTLS_LIBRARY_DIRS})
+endif()
 
 # Sodium
 find_package(PkgConfig REQUIRED)
@@ -128,7 +133,7 @@ add_executable(${PROJECT_NAME}
 target_include_directories(${PROJECT_NAME} PRIVATE ${PROJECT_INCLUDE_DIRS} ${SODIUM_INCLUDE_DIRS})
 set_target_properties(${PROJECT_NAME} PROPERTIES
     LINKER_LANGUAGE CXX
-    OUTPUT_NAME "${PROJECT_NAME}.out"
+    OUTPUT_NAME "${PROJECT_NAME}"
 )
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE ${LT_COMMON_DEFS})

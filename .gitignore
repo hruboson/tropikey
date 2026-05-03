@@ -63,3 +63,7 @@ build/
 
 # generated files
 *.log
+tropikey
+
+# nix
+result
