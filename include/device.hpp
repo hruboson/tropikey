@@ -11,7 +11,6 @@
 #include "libtropic_mbedtls_v4.h"
 #include "libtropic_port_posix_usb_dongle.h"
 
-
 struct lt_handle_t;
 struct lt_dev_posix_usb_dongle_t;
 struct lt_ctx_mbedtls_v4_t;
@@ -33,6 +32,13 @@ struct lt_ctx_mbedtls_v4_t;
  *	- relegate signing challenge
  *	- class for representation of key pair (pubkey, slot for privkey, operations, representation, ...)
  */
+
+struct Version {
+	uint8_t major = 0;
+	uint8_t minor = 0;
+	uint8_t patch = 0;
+	uint8_t build = 0; // optional
+};
 
 class Device {
 public:
@@ -56,13 +62,18 @@ public:
 	bool sign_ed25519_challenge(Ed25519Key key, std::vector<uint8_t>& challenge, std::vector<uint8_t>& signature);
 
     bool print_info(std::ostream& out);
+	const Version& get_hw_version() const { return hw_version; }
+    const Version& get_fw_version() const { return fw_version; }
 
 private:
-    lt_handle_t* lt_handle_ptr();
+	lt_handle_t* lt_handle_ptr();
 
     lt_handle_t lt_handle{};
     lt_dev_posix_usb_dongle_t dongle{};
     lt_ctx_mbedtls_v4_t crypto_ctx{};
 
     bool fail(const char* msg, lt_ret_t ret);
+
+    Version hw_version{};
+    Version fw_version{};
 };

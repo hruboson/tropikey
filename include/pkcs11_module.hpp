@@ -74,6 +74,33 @@
 #endif
 
 #include "pkcs11/pkcs11.h"
+#include "device.hpp"
+#include "key.hpp"
+#include <mutex>
+#include <optional>
 
+// module-level state shared across all C_* functions
+struct Pkcs11Module {
+    std::mutex              mtx;
+    bool                    initialized = false;
+    std::optional<Device>   device; // safer than null or not null
+
+    static Pkcs11Module& get() {
+        static Pkcs11Module instance;
+        return instance;
+    }
+
+private:
+    Pkcs11Module() = default;
+};
+
+#define MODULE Pkcs11Module::get()
+
+static CK_VERSION to_ck_version(const Version& v) {
+    CK_VERSION out;
+    out.major = v.major;
+    out.minor = v.minor;
+    return out;
+}
 
 #endif // #ifdef _WIN32

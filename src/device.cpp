@@ -122,6 +122,8 @@ Device::~Device() {}
 bool Device::init() {
 	lt_handle = {};
 	dongle = {};
+	uint8_t fw_ver[4];
+	lt_ret_t ret = LT_OK;
 
 	psa_status_t status = psa_crypto_init();
 	if (status != PSA_SUCCESS) {
@@ -140,12 +142,38 @@ bool Device::init() {
 	lt_handle.l3.crypto_ctx = &crypto_ctx;
 
 	std::cout << "Initializing handle...";
-	lt_ret_t ret = lt_init(&lt_handle);
-	if (ret != LT_OK) {
+	ret = lt_init(&lt_handle);
+	if (LT_OK != ret) {
 		std::cerr << "\nFailed to initialize handle, ret=" << lt_ret_verbose(ret) << "\n";
 		return false;
 	}
 	std::cout << "OK\n";
+
+	// FW version
+	ret = lt_get_info_riscv_fw_ver(&lt_handle, fw_ver);
+	if (LT_OK != ret) {
+		std::cerr << "Failed to read FW version\n";
+		return false;
+	}
+	fw_version.major = fw_ver[3];
+	fw_version.minor = fw_ver[2];
+	fw_version.patch = fw_ver[1];
+	fw_version.build = fw_ver[0];
+
+	// HW version
+	lt_chip_id_t chip_id{};
+	ret = lt_get_info_chip_id(&lt_handle, &chip_id);
+	if (LT_OK != ret) {
+		std::cerr << "Failed to read chip ID\n";
+		return false;
+	}
+
+	// hardware version from silicon revision (ASCII -> numeric)
+	// ex: 'A','C','A','B' → 0,2,0,1
+	hw_version.major = chip_id.silicon_rev[0] - 'A';
+	hw_version.minor = chip_id.silicon_rev[1] - 'A';
+	hw_version.patch = chip_id.silicon_rev[2] - 'A';
+	hw_version.build = chip_id.silicon_rev[3] - 'A';
 
 	return true;
 }

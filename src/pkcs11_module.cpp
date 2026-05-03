@@ -21,6 +21,12 @@
 
 
 #include "pkcs11_module.hpp"
+#include "pkcs11t.h"
+#include <cstring>
+#include <mutex>
+
+// CK = Cryptoki
+// CK_RV = CK return value
 
 
 CK_FUNCTION_LIST empty_pkcs11_2_40_functions = 
@@ -213,25 +219,60 @@ CK_INTERFACE empty_pkcs11_3_1_interface =
 
 CK_DEFINE_FUNCTION(CK_RV, C_Initialize)(CK_VOID_PTR pInitArgs)
 {
-	UNUSED(pInitArgs);
+	// pInitArgs - tells pkcs how to use multithreading
+	// Initialize memory buffer - done
+	// Detect available slots - maybe?
+	
+	std::lock_guard<std::mutex> lock(MODULE.mtx);
+	
+	if(MODULE.initialized) return CKR_CRYPTOKI_ALREADY_INITIALIZED;
 
-	return CKR_FUNCTION_NOT_SUPPORTED;
+	MODULE.device.emplace(); // construct the Device object
+	if(!MODULE.device->init() || !MODULE.device->start_secure_session()){
+		MODULE.device.reset(); // destroy Device object
+		return CKR_DEVICE_ERROR;
+	}
+
+	MODULE.initialized = true;
+	return CKR_OK;
 }
 
 
 CK_DEFINE_FUNCTION(CK_RV, C_Finalize)(CK_VOID_PTR pReserved)
 {
-	UNUSED(pReserved);
+	// finalizes memory buffer, last function called - done
+	// pReserved has no use (exists for possible future uses)
+	
+    if (!MODULE.initialized)
+        return CKR_CRYPTOKI_NOT_INITIALIZED;
 
-	return CKR_FUNCTION_NOT_SUPPORTED;
+    MODULE.device->close();
+    MODULE.device.reset();
+    MODULE.initialized = false;
+
+	return CKR_OK;
 }
 
 
 CK_DEFINE_FUNCTION(CK_RV, C_GetInfo)(CK_INFO_PTR pInfo)
 {
-	UNUSED(pInfo);
+	if(!pInfo) return CKR_ARGUMENTS_BAD;
 
-	return CKR_FUNCTION_NOT_SUPPORTED;
+	pInfo->cryptokiVersion = {0x02, 0x28}; // Cryptoki implemented version 2.40
+	
+	// PKCS#11 string are NOT null terminated
+	memset(pInfo->manufacturerID, ' ', sizeof(pInfo->manufacturerID));
+	memset(pInfo->libraryDescription, ' ', sizeof(pInfo->libraryDescription));
+
+	const char* mfr = "Tropic Square";
+	const char* libinfo = "Tropikey PKCS#11 Module";
+	memcpy(pInfo->manufacturerID, mfr, strlen(mfr));
+	memcpy(pInfo->libraryDescription, libinfo, strlen(libinfo));
+
+	pInfo->flags = 0;
+	pInfo->libraryVersion = {0x00, 0x01}; // Tropikey version
+
+	return CKR_OK;
 }
 
 
@@ -248,29 +289,96 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetFunctionList)(CK_FUNCTION_LIST_PTR_PTR ppFunction
 
 CK_DEFINE_FUNCTION(CK_RV, C_GetSlotList)(CK_BBOOL tokenPresent, CK_SLOT_ID_PTR pSlotList, CK_ULONG_PTR pulCount)
 {
-	UNUSED(tokenPresent);
-	UNUSED(pSlotList);
-	UNUSED(pulCount);
+	// obtain all slots
+	
+    // always only one slot - the device (TROPIC01 devkit)
+    // regardless of whether the device is currently connected
+    if (tokenPresent && !MODULE.initialized) {
+        *pulCount = 0;
+        return CKR_OK;
+    }
 
-	return CKR_FUNCTION_NOT_SUPPORTED;
+    if (!pSlotList) {
+        *pulCount = 1;
+        return CKR_OK;
+    }
+
+    if (*pulCount < 1)
+        return CKR_BUFFER_TOO_SMALL;
+
+    pSlotList[0] = 0;  // the only slot ID
+    *pulCount = 1;
+    return CKR_OK;
 }
 
 
 CK_DEFINE_FUNCTION(CK_RV, C_GetSlotInfo)(CK_SLOT_ID slotID, CK_SLOT_INFO_PTR pInfo)
 {
-	UNUSED(slotID);
-	UNUSED(pInfo);
+	if (slotID != 0)
+		return CKR_SLOT_ID_INVALID;  // only one slot available - the USB devkit
 
-	return CKR_FUNCTION_NOT_SUPPORTED;
+	// PKCS#11 string are NOT null terminated
+	memset(pInfo->slotDescription, ' ', sizeof(pInfo->slotDescription));
+	memset(pInfo->manufacturerID,  ' ', sizeof(pInfo->manufacturerID));
+
+	const char* desc = "TROPIC01 USB Devkit";
+	const char* mfr  = "Tropic Square";
+	memcpy(pInfo->slotDescription, desc, strlen(desc));
+	memcpy(pInfo->manufacturerID,  mfr,  strlen(mfr));
+
+	pInfo->flags = CKF_HW_SLOT | (MODULE.initialized ? CKF_TOKEN_PRESENT : 0);
+	pInfo->hardwareVersion = to_ck_version(MODULE.device->get_hw_version());
+	pInfo->firmwareVersion = to_ck_version(MODULE.device->get_fw_version());
+
+	return CKR_OK;
 }
 
 
 CK_DEFINE_FUNCTION(CK_RV, C_GetTokenInfo)(CK_SLOT_ID slotID, CK_TOKEN_INFO_PTR pInfo)
 {
-	UNUSED(slotID);
-	UNUSED(pInfo);
+    if (slotID != 0)       return CKR_SLOT_ID_INVALID;
+    if (!pInfo)            return CKR_ARGUMENTS_BAD;
+    if (!MODULE.initialized) return CKR_TOKEN_NOT_PRESENT;
 
-	return CKR_FUNCTION_NOT_SUPPORTED;
+    memset(pInfo->label,          ' ', sizeof(pInfo->label));
+    memset(pInfo->manufacturerID, ' ', sizeof(pInfo->manufacturerID));
+    memset(pInfo->model,          ' ', sizeof(pInfo->model));
+    memset(pInfo->serialNumber,   ' ', sizeof(pInfo->serialNumber));
+    memset(pInfo->utcTime,        ' ', sizeof(pInfo->utcTime));
+
+    const char* label = "Tropikey";
+    const char* mfr   = "Tropic Square";
+    const char* model = "TROPIC01";
+    memcpy(pInfo->label,          label, strlen(label));
+    memcpy(pInfo->manufacturerID, mfr,   strlen(mfr));
+    memcpy(pInfo->model,          model, strlen(model));
+
+    pInfo->flags =
+        CKF_TOKEN_INITIALIZED |   // token is ready to use
+        CKF_PROTECTED_AUTHENTICATION_PATH | // no PIN needed (hardware handles auth)
+        CKF_HW_SLOT;              // it's a real hardware token
+
+    // TROPIC01 session model
+    pInfo->ulMaxSessionCount    = 1;
+    pInfo->ulSessionCount       = MODULE.initialized ? 1 : 0;
+    pInfo->ulMaxRwSessionCount  = 1;
+    pInfo->ulRwSessionCount     = 0;
+
+    // no PIN on this token
+    pInfo->ulMaxPinLen = 0;
+    pInfo->ulMinPinLen = 0;
+
+    // memory info not available from the chip
+    pInfo->ulTotalPublicMemory  = CK_UNAVAILABLE_INFORMATION;
+    pInfo->ulFreePublicMemory   = CK_UNAVAILABLE_INFORMATION;
+    pInfo->ulTotalPrivateMemory = CK_UNAVAILABLE_INFORMATION;
+    pInfo->ulFreePrivateMemory  = CK_UNAVAILABLE_INFORMATION;
+
+    // TODO serial number from chip_id
+    pInfo->hardwareVersion = to_ck_version(MODULE.device->get_hw_version());
+    pInfo->firmwareVersion = to_ck_version(MODULE.device->get_fw_version());
+
+    return CKR_OK;
 }
 
 
@@ -329,6 +437,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_SetPIN)(CK_SESSION_HANDLE hSession, CK_UTF8CHAR_PTR 
 
 CK_DEFINE_FUNCTION(CK_RV, C_OpenSession)(CK_SLOT_ID slotID, CK_FLAGS flags, CK_VOID_PTR pApplication, CK_NOTIFY Notify, CK_SESSION_HANDLE_PTR phSession)
 {
+	// opens session between application and a slot
+	// slot must contain key in it
+
 	UNUSED(slotID);
 	UNUSED(flags);
 	UNUSED(pApplication);
@@ -341,6 +452,8 @@ CK_DEFINE_FUNCTION(CK_RV, C_OpenSession)(CK_SLOT_ID slotID, CK_FLAGS flags, CK_V
 
 CK_DEFINE_FUNCTION(CK_RV, C_CloseSession)(CK_SESSION_HANDLE hSession)
 {
+	// close an open session on a token, once session is closed app cannot pass any cryptographic request to a token
+
 	UNUSED(hSession);
 
 	return CKR_FUNCTION_NOT_SUPPORTED;
@@ -349,6 +462,8 @@ CK_DEFINE_FUNCTION(CK_RV, C_CloseSession)(CK_SESSION_HANDLE hSession)
 
 CK_DEFINE_FUNCTION(CK_RV, C_CloseAllSessions)(CK_SLOT_ID slotID)
 {
+	// close any open session on a token
+	
 	UNUSED(slotID);
 
 	return CKR_FUNCTION_NOT_SUPPORTED;
@@ -388,6 +503,8 @@ CK_DEFINE_FUNCTION(CK_RV, C_SetOperationState)(CK_SESSION_HANDLE hSession, CK_BY
 
 CK_DEFINE_FUNCTION(CK_RV, C_Login)(CK_SESSION_HANDLE hSession, CK_USER_TYPE userType, CK_UTF8CHAR_PTR pPin, CK_ULONG ulPinLen)
 {
+	// authenticates an user
+
 	UNUSED(hSession);
 	UNUSED(userType);
 	UNUSED(pPin);
@@ -399,6 +516,8 @@ CK_DEFINE_FUNCTION(CK_RV, C_Login)(CK_SESSION_HANDLE hSession, CK_USER_TYPE user
 
 CK_DEFINE_FUNCTION(CK_RV, C_Logout)(CK_SESSION_HANDLE hSession)
 {
+	// logs out user from a token
+
 	UNUSED(hSession);
 
 	return CKR_FUNCTION_NOT_SUPPORTED;
