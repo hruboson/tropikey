@@ -38,7 +38,6 @@ inputs = {
         inputs.nixpkgs.follows = "nixpkgs";
     };
 };
-
 ```
 
 Then simply enable it in your config:
