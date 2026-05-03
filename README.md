@@ -7,6 +7,18 @@ The idea is to create a hardware security token for my [NixOS machine](https://g
 
 I was fortunate enough to stumble upon an interesting presentation by [Ondřej Vičar](https://www.linkedin.com/in/ondrej-vicar/) at the [Moravian IT Beer](https://luma.com/fulnesul) conference. The presentation was about the [TROPIC01 chip](https://tropicsquare.com/tropic01), its architecture, features, open source mindset and testing. Even though I would not consider myself a "hardware person", I found the idea of open source secure chip fascinating. To me the idea of open source means a product (and mostly code) someone truly stands behind. Their catch-prhase *"Forget obscurity"* (and the less-pr-friendly *Fcuk obscurity*) is something I think everyone should get behind - a system should stay secure even when everything is known about it except for the key ([the Kerckhoff's principle](https://en.wikipedia.org/wiki/Kerckhoffs%27s_principle)). 
 
+## PKCS#11
+
+The general flow of PKCS #11 functions:
+1. C_GetFunctionList
+2. C_Initialize
+3. C_GetSlotList
+4. C_OpenSession
+5. C_Login
+6. C_Logout
+7. C_CloseSession
+8. C_Finalize
+
 ## Build
 
 Using Nix:
