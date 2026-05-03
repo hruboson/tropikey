@@ -70,11 +70,11 @@ You can find example usage in my [NixOS configuration repo](https://github.com/h
 
 ### Libraries used
 
-All necessary libraries to buld the project are already included in the repo. There should be no need to download or set up any manually.
-
 - [libtropic](https://github.com/tropicsquare/libtropic/) - communication with the TROPIC01 chip through the USB dev kit.
 - [empty-pkcs11](https://github.com/Pkcs11Interop/empty-pkcs11) - PKCS#11 minimalist implementation.
 - [pkcs11.h](https://docs.oasis-open.org/pkcs11/pkcs11-base/v2.40/os/pkcs11-base-v2.40-os.html) - PKCS #11 Cryptographic Token Interface Base Specification Version 2.40
+- [mbedtls](https://github.com/Mbed-TLS/mbedtls) - for libtropic
+- [libsodium](https://github.com/jedisct1/libsodium) - only for testing
 
 ## Testing
 
