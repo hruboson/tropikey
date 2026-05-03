@@ -23,10 +23,6 @@
 				version = "0.1.0";
 
 				src = ./.; 
-				postUnpack = ''
-					cp -r ${libtropic} $sourceRoot/libtropic
-					chmod -R u+w $sourceRoot/libtropic
-				'';
 
 				nativeBuildInputs = with pkgs; [
 					cmake
@@ -44,6 +40,7 @@
 
 				cmakeFlags = [
 					"-DCMAKE_BUILD_TYPE=Release"
+					"-DLIBTROPIC_SRC=${libtropic}"
 				];
 
 				installPhase = ''

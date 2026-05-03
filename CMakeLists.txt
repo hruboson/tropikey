@@ -54,7 +54,7 @@ endif()
 #                                                                         #
 ###########################################################################
 
-add_subdirectory(libtropic)
+add_subdirectory(${LIBTROPIC_SRC} libtropic)
 target_compile_options(tropic PRIVATE -ffunction-sections -fdata-sections)
 
 ###########################################################################
@@ -88,12 +88,12 @@ pkg_check_modules(SODIUM REQUIRED libsodium)
 ###########################################################################
 
 # MbedTLS v4 Cryptographic Abstraction Layer
-add_subdirectory(libtropic/cal/mbedtls_v4 "mbedtls_v4_cal")
+add_subdirectory(${LIBTROPIC_SRC}/cal/mbedtls_v4 "mbedtls_v4_cal")
 target_sources(tropic PRIVATE ${LT_CAL_SRCS})
 target_include_directories(tropic PUBLIC ${LT_CAL_INC_DIRS})
 
 # POSIX USB dongle Hardware Abstraction Layer
-add_subdirectory(libtropic/hal/posix/usb_dongle "posix_usb_dongle")
+add_subdirectory(${LIBTROPIC_SRC}/hal/posix/usb_dongle "posix_usb_dongle")
 target_sources(tropic PRIVATE ${LT_HAL_SRCS})
 target_include_directories(tropic PUBLIC ${LT_HAL_INC_DIRS})
 
