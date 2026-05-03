@@ -12,7 +12,7 @@ PKCS_SO    		:= $(BUILD_DIR)/$(PKCS_SO_NAME)
 all: build
 
 configure:
-	cmake -B $(BUILD_DIR) -DCMAKE_BUILD_TYPE=Release
+	cmake -B $(BUILD_DIR) -DCMAKE_BUILD_TYPE=Release -DLIBTROPIC_SRC=libtropic
 
 build: configure
 	cmake --build $(BUILD_DIR) --parallel
@@ -26,3 +26,5 @@ clean:
 	rm -rf $(BUILD_DIR)
 
 rebuild: clean build
+
+
