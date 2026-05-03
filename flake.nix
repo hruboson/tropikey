@@ -3,9 +3,13 @@
 
 	inputs = {
 		nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+		libtropic = {
+			url = "github:tropicsquare/libtropic/51044cdc2e0aabff42305130b344c5db3136f158";
+			flake = false;
+		};
 	};
 
-	outputs = { self, nixpkgs }: 
+	outputs = { self, libtropic, nixpkgs }: 
 		let
 		systems = [ "x86_64-linux" "aarch64-linux" ];
 	forAllSystems = nixpkgs.lib.genAttrs systems;
@@ -13,20 +17,14 @@
 		packages = forAllSystems (system:
 			let
 				pkgs = import nixpkgs { inherit system; };
-				libtropic-src = pkgs.fetchFromGitHub {
-					owner  = "tropicsquare";
-					repo   = "libtropic";
-					rev    = "51044cdc2e0aabff42305130b344c5db3136f158";
-					hash   = "sha256-Ap+wa05RgDO0UMofBBmhDQ30dLKUmYDlpJ1FvqTgEhU=";
-				};
 			in {
 			tropikey = pkgs.stdenv.mkDerivation {
 				pname = "tropikey";
 				version = "0.1.0";
 
-				src = ./.;
+				src = ./.; 
 				postUnpack = ''
-					cp -r ${libtropic-src} $sourceRoot/libtropic
+					cp -r ${libtropic} $sourceRoot/libtropic
 					chmod -R u+w $sourceRoot/libtropic
 				'';
 
