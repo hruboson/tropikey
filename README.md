@@ -28,6 +28,12 @@ In the context of SSH, PKCS#11 enables hardware-backed authentication: the SSH c
 
 # Usage
 
+You can use this in any app that supports the PKCS#11 protocol. For example using this with SSH usually means you pass the `tropikey_pkcs11.so` file as an argument:
+
+`ssh -I tropikey_pkcs11.so user@server.com`
+
+## NixOS
+
 So far I have only tried this on NixOS. This repo contains a `flake.nix` so you can add this to your flake based config as an input.
 
 ```
@@ -52,6 +58,8 @@ programs.tropikey = {
     enableSshPkcs11 = true; # automatically integrates with the system-wide ssh config
 };
 ```
+
+For now I do not recommend enabling the PKCS#11 by default for SSH because not all functions are supported and some programs or services might not work with it. I would personally recommend using the `ssh` while passing the `-I tropikey_pkcs11.so` argument.
 
 You can find example usage in my [NixOS configuration repo](https://github.com/hruboson/nixos-conf/blob/parts/parts/services/tropikey.nix)|[flake.nix](https://github.com/hruboson/nixos-conf/blob/parts/flake.nix) (`parts` branch).
 
