@@ -67,3 +67,6 @@ tropikey
 
 # nix
 result
+
+# cad
+*.FCBak
