@@ -6,15 +6,13 @@
 $fn = 100; // fragment number - level of detail
 
 // board dimensions
-board_length = 45;
+thick_part_length = 34; // the main part of the board without neck
 board_width = 20;
 floor_thickness = 0.6;
-max_component_height = 2.2; // tallest component/2
+max_component_height = 2.5;
 neck_width = 12;
-neck_height = 11;
-neck_start_x = board_length - neck_height;
-board_to_neck_ratio_width = neck_width / board_width; // 60% ... maybe change the whole logic so I can adjust neck length
-board_to_neck_ratio_height = neck_start_x / board_length;
+neck_length = 14;
+usb_c_width = 8.2;
 
 // enclosure parameters
 wall_thickness = 3;
@@ -22,11 +20,13 @@ clearance = 1.0;
 total_height = floor_thickness + max_component_height + clearance;
 clip_height = 3;
 clip_undercut = 0.8;
-half_height = total_height/2 + 1;
+half_height = total_height / 2;
 
 // alignment pin
 pin_width = 1.5;
 pin_depth = half_height;
+pin_outwards_width = pin_width - 0.07; // this might need adjusting
+pin_outwards_depth = pin_depth - 0.5;
 
 // helper constants
 RERR = 0.01; // rounding error
@@ -40,9 +40,9 @@ RERR = 0.01; // rounding error
  * @param {bool} [base=true] - false to not generate any joints
  */
 module enclosure_half(upper = false, l = undef, w = undef, h = undef, base = true) {
-    length = (l == undef) ? board_length + 2*wall_thickness : l;
-    width = (l == undef) ? board_width + 2*wall_thickness : w;
-    height = (l == undef) ? half_height : h;
+    length = (l == undef) ? thick_part_length + 2*wall_thickness : l;
+    width = (w == undef) ? thick_part_length + 2*wall_thickness : w;
+    height = (h == undef) ? half_height : h;
     
     difference() {
         rounded_rect(
@@ -51,28 +51,10 @@ module enclosure_half(upper = false, l = undef, w = undef, h = undef, base = tru
             height,
             radius = 2
         );
-        
-        // cutoff from sides
-        translate([length*board_to_neck_ratio_height + RERR, -RERR, -RERR])
-        cube([
-            length*(1-board_to_neck_ratio_height) + RERR,
-            width*(1-board_to_neck_ratio_width)/2 + RERR,
-            height + RERR*2
-        ]);
-        translate([
-                length*board_to_neck_ratio_height + RERR, 
-                width-width*(1-board_to_neck_ratio_width)/2 + RERR, 
-                -RERR
-            ])
-        cube([
-            length*(1-board_to_neck_ratio_height) + RERR,
-            width*(1-board_to_neck_ratio_width)/2 + RERR,
-            height + RERR*2
-        ]);
-        
+                    
         // cutoff at the neck top
-        translate([board_length + wall_thickness - RERR, 0, -0.1])
-        cube([wall_thickness + 2*RERR, width, height+3]);
+        translate([thick_part_length, (width/2-neck_width/2), height/2 - 2.5*RERR]) // I have no idea why the -2.5*RERR works
+        cube([wall_thickness*2 + 2*RERR, neck_width, height]);
         
         // joints
         if(!upper && base){        
@@ -86,37 +68,63 @@ module enclosure_half(upper = false, l = undef, w = undef, h = undef, base = tru
             translate([length / 2, wall_thickness*0.5, height])
             rotate(90)
             cube([pin_width, width*0.6, pin_depth], center = true);
-            }
+        }
         
         // hole for button
         if(upper && base){
-            translate([length*0.7,width/2, -RERR])
-            cube([6, width*0.3, half_height], center = true);
-            
-            translate([length*0.7,width/2, -RERR])
-            cube([6, width*0.3, half_height], center = true);
+            translate([length*0.88,width/2, -RERR])
+            cube([4, width*0.3, half_height], center = true);      
         }
     }
     
+    
     // upper half
-    if(upper && base){
-        pin_outwards_width = pin_width - 0.15; // this might need adjusting
-        
+    if(upper && base){        
         translate([wall_thickness*0.5, width / 2, height])
-        cube([pin_outwards_width, width*0.6, pin_depth], center = true);
+        cube([pin_outwards_width, width*0.6, pin_outwards_depth], center = true);
            
         translate([length / 2, width - wall_thickness*0.5, height])
         rotate(90)
-        cube([pin_outwards_width, width*0.6, pin_depth], center = true);
+        cube([pin_outwards_width, width*0.6, pin_outwards_depth], center = true);
         
         translate([length / 2, wall_thickness*0.5, height])
         rotate(90)
-        cube([pin_outwards_width, width*0.6, pin_depth], center = true);
+        cube([pin_outwards_width, width*0.6, pin_outwards_depth], center = true);
+    }
+}
+
+module enclosure_half_neck(upper = false, l = undef, w = undef, h = undef, base = true) {
+    length = (l == undef) ? neck_length + 2*wall_thickness : l;
+    width = (w == undef) ? neck_width + 2*wall_thickness : w;
+    height = (h == undef) ? half_height : h;
+    
+    difference() {
+        cube([length, width, height]);
+        
+        if(!upper && base){
+            translate([length*0.6, width-wall_thickness/2, height])
+            rotate(90)
+            cube([pin_width, width*0.5, pin_depth], center = true);
+            
+            translate([length*0.6, wall_thickness/2, height])
+            rotate(90)
+            cube([pin_width, width*0.5, pin_depth], center = true);
+        }
+    }
+    
+    if(upper && base){
+        translate([length*0.6, width-wall_thickness/2, height])
+        rotate(90)
+        cube([pin_width, width*0.5, pin_depth], center = true);
+            
+        translate([length*0.6, wall_thickness/2, height])
+        rotate(90)
+        cube([pin_width, width*0.5, pin_depth], center = true);
     }
 }
 
 /**
- * Create a rectangle with rounded corners and uniform height
+ * Create a rectangle with two rounded corners and two square corners and uniform height
  * @param {real} length - length of the rectangle along X-axis
  * @param {real} width - width of the rectangle along Y-axis
  * @param {real} height - height of the extruded shape along Z-axis
@@ -126,12 +134,13 @@ module rounded_rect(length, width, height, radius=2) {
     hull() {
         translate([radius, radius, 0])
             cylinder(r=radius, h=height);
-        translate([length-radius, radius, 0])
-            cylinder(r=radius, h=height);
         translate([radius, width-radius, 0])
             cylinder(r=radius, h=height);
+        
+        translate([length-radius, 0, 0])
+            cube([radius, radius, height], 0);
         translate([length-radius, width-radius, 0])
-            cylinder(r=radius, h=height);
+            cube([radius, radius, height], 0);
     }
 }
 
@@ -139,20 +148,36 @@ module rounded_rect(length, width, height, radius=2) {
 //      MAIN        //
 //////////////////////
 
-translate([-board_length/2 - wall_thickness, -board_width/2 - wall_thickness, 0]) {
+translate([-thick_part_length/2 - wall_thickness, -board_width/2 - wall_thickness, 0]) {
     difference() {
-        enclosure_half(l = board_length + 2*wall_thickness, w = board_width + 2*wall_thickness, h = half_height);
+        enclosure_half(l = thick_part_length + 2*wall_thickness, w = board_width + 2*wall_thickness, h = half_height);
         
         translate([wall_thickness, wall_thickness, 1])
-        enclosure_half(upper = false, l = board_length, w = board_width, h = half_height, base = false);
+        enclosure_half(l = thick_part_length, w = board_width, h = half_height, base = false);
+    }
+    
+    translate([thick_part_length + 2*wall_thickness, board_width/2 - 2*wall_thickness, 0])
+    difference() {
+        enclosure_half_neck(l = neck_length, w = neck_width+2*wall_thickness, h = half_height);
+        
+        translate([-RERR, wall_thickness, 1])
+        enclosure_half_neck(l = neck_length + 2*wall_thickness + RERR, w = neck_width, h = half_height, base = false);
     }
 }
 
-translate([-board_length/2 - wall_thickness + 60, -board_width/2 - wall_thickness, 0]) {
+translate([-thick_part_length/2 - wall_thickness + 60, -board_width/2 - wall_thickness, 0]) {
     difference() {
-        enclosure_half(upper = true, l = board_length + 2*wall_thickness, w = board_width + 2*wall_thickness, h = half_height);
+        enclosure_half(upper = true, l = thick_part_length + 2*wall_thickness, w = board_width + 2*wall_thickness, h = half_height);
         
         translate([wall_thickness, wall_thickness, 1])
-        enclosure_half(upper = true, l = board_length, w = board_width, h = half_height, base = false);
+        enclosure_half(upper = true, l = thick_part_length, w = board_width, h = half_height, base = false);
+    }
+    
+    translate([thick_part_length + 2*wall_thickness, board_width/2 - 2*wall_thickness, 0])
+    difference() {
+        enclosure_half_neck(upper = true, l = neck_length, w = neck_width+2*wall_thickness, h = half_height);
+        
+        translate([-RERR, wall_thickness, 1])
+        enclosure_half_neck(upper = true, l = neck_length + 2*wall_thickness + RERR, w = neck_width, h = half_height, base = false);
     }
 }
