@@ -25,7 +25,7 @@ clip_undercut = 0.8;
 half_height = total_height/2 + 1;
 
 // alignment pin
-pin_radius = 1;
+pin_width = 1.5;
 pin_depth = half_height;
 
 // helper constants
@@ -74,29 +74,25 @@ module enclosure_half(upper = false, l = undef, w = undef, h = undef, base = tru
         translate([board_length + wall_thickness - RERR, 0, -0.1])
         cube([wall_thickness + 2*RERR, width, height+3]);
         
-        // dimple joints
+        // joints
         if(!upper && base){        
-            translate([wall_thickness*0.7, wall_thickness*0.7, height])
-            cylinder(h = pin_depth, r = pin_radius, center = true);
+            translate([wall_thickness*0.5, width / 2, height])
+            cube([pin_width, width*0.6, pin_depth], center = true);
             
-            translate([wall_thickness*0.7, width-wall_thickness*0.7, height])        
-            cylinder(h = pin_depth, r = pin_radius, center = true);
+            translate([length / 2, width - wall_thickness*0.5, height])
+            rotate(90)
+            cube([pin_width, width*0.6, pin_depth], center = true);
             
-            translate([length*0.7, wall_thickness*0.5, height])
-            cylinder(h = pin_depth, r = pin_radius, center = true);
-
-            translate([length*0.7, width-wall_thickness*0.5, height])
-            cylinder(h = pin_depth, r = pin_radius, center = true);
-            
-            translate([length*0.4, wall_thickness*0.5, height])
-            cylinder(h = pin_depth, r = pin_radius, center = true);
-            
-            translate([length*0.4, width-wall_thickness*0.5, height])
-            cylinder(h = pin_depth, r = pin_radius, center = true);
-        }
+            translate([length / 2, wall_thickness*0.5, height])
+            rotate(90)
+            cube([pin_width, width*0.6, pin_depth], center = true);
+            }
         
         // hole for button
         if(upper && base){
+            translate([length*0.7,width/2, -RERR])
+            cube([6, width*0.3, half_height], center = true);
+            
             translate([length*0.7,width/2, -RERR])
             cube([6, width*0.3, half_height], center = true);
         }
@@ -104,25 +100,18 @@ module enclosure_half(upper = false, l = undef, w = undef, h = undef, base = tru
     
     // upper half
     if(upper && base){
-        pin_outwards_radius = pin_radius - 0.15; // this might need adjusting
+        pin_outwards_width = pin_width - 0.15; // this might need adjusting
         
-        translate([wall_thickness*0.7, wall_thickness*0.7, height])
-        cylinder(h = pin_depth, r = pin_outwards_radius, center = true);
+        translate([wall_thickness*0.5, width / 2, height])
+        cube([pin_outwards_width, width*0.6, pin_depth], center = true);
+           
+        translate([length / 2, width - wall_thickness*0.5, height])
+        rotate(90)
+        cube([pin_outwards_width, width*0.6, pin_depth], center = true);
         
-        translate([wall_thickness*0.7, width-wall_thickness*0.7, height])        
-        cylinder(h = pin_depth, r = pin_outwards_radius, center = true);
-        
-        translate([length*0.7, wall_thickness*0.5, height])
-        cylinder(h = pin_depth, r = pin_outwards_radius, center = true);
-
-        translate([length*0.7, width-wall_thickness*0.5, height])
-        cylinder(h = pin_depth, r = pin_outwards_radius, center = true);
-        
-        translate([length*0.4, wall_thickness*0.5, height])
-        cylinder(h = pin_depth, r = pin_outwards_radius, center = true);
-        
-        translate([length*0.4, width-wall_thickness*0.5, height])
-        cylinder(h = pin_depth, r = pin_outwards_radius, center = true);
+        translate([length / 2, wall_thickness*0.5, height])
+        rotate(90)
+        cube([pin_outwards_width, width*0.6, pin_depth], center = true);
     }
 }
 
