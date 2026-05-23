@@ -25,10 +25,10 @@ module board_half(wt = 2, ft = 1, h = 1.5, top = false){
     if(!top){
         difference(){
             translate([0,0,ft+joint_depth])
-            board_reference(wt = 1.5 - 0.15, h = 2);
+            board_reference(wt = 1.5 - 0.1, h = 2);
             
             translate([0,0,ft+joint_depth/2])
-            board_reference(wt = 0.5 + 0.15, h = 4);
+            board_reference(wt = 0.5 + 0.1, h = 4);
             
             translate([0,-20.5-(2*wt+usb_c_neck_length),negative_height/2+ft])
             cube([usb_c_width,4*wt+usb_c_neck_length,negative_height], center = true);
