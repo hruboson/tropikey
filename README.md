@@ -87,6 +87,14 @@ You can find example usage in my [NixOS configuration repo](https://github.com/h
 
 There are no unit tests at the moment and I'm mostly discovering how to actually test the pkcs#11 implementation using the `pkcs11-tool` and `ssh-keygen`. Both of these commands are available in the nix shell.
 
+# Enclosure
+
+I have included STL files for the enclosure for this DevKit. You can find it in [cad/](./cad/) directory.
+
+V2 enclosure:
+
+![USB devkit with enclosure v2](tropikey_with_enclosure.jpg)
+
 # References
 
 Learning and reference materials I used while writing this...
