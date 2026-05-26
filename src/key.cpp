@@ -3,61 +3,58 @@
 #include <string>
 #include <vector>
 
-static const char b64_table[] =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+static const char b64_table[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
-static void append_u32(std::vector<uint8_t>& v, uint32_t val) {
-    v.push_back((val >> 24) & 0xFF);
-    v.push_back((val >> 16) & 0xFF);
-    v.push_back((val >> 8) & 0xFF);
-    v.push_back(val & 0xFF);
+static void append_u32(std::vector<uint8_t> &v, uint32_t val) {
+	v.push_back((val >> 24) & 0xFF);
+	v.push_back((val >> 16) & 0xFF);
+	v.push_back((val >> 8) & 0xFF);
+	v.push_back(val & 0xFF);
 }
 
-static std::string base64_encode(const std::vector<uint8_t>& data){
-    std::string out;
+static std::string base64_encode(const std::vector<uint8_t> &data) {
+	std::string out;
 
-    size_t i = 0;
-    uint32_t buf = 0;
-    int bits = 0;
+	size_t i = 0;
+	uint32_t buf = 0;
+	int bits = 0;
 
-    for (uint8_t byte : data) {
-        buf = (buf << 8) | byte;
-        bits += 8;
+	for (uint8_t byte : data) {
+		buf = (buf << 8) | byte;
+		bits += 8;
 
-        while (bits >= 6) {
-            bits -= 6;
-            out.push_back(b64_table[(buf >> bits) & 0x3F]);
-        }
-    }
+		while (bits >= 6) {
+			bits -= 6;
+			out.push_back(b64_table[(buf >> bits) & 0x3F]);
+		}
+	}
 
-    if (bits > 0) {
-        buf <<= (6 - bits);
-        out.push_back(b64_table[buf & 0x3F]);
-    }
+	if (bits > 0) {
+		buf <<= (6 - bits);
+		out.push_back(b64_table[buf & 0x3F]);
+	}
 
-    while (out.size() % 4) {
-        out.push_back('=');
-    }
+	while (out.size() % 4) {
+		out.push_back('=');
+	}
 
-    return out;
+	return out;
 }
 
-Ed25519Key::Ed25519Key(lt_ecc_slot_t slot){
-	this->slot = slot;
-}
+Ed25519Key::Ed25519Key(lt_ecc_slot_t slot) { this->slot = slot; }
 
 std::string Ed25519Key::to_ssh_ed25519() {
-    std::vector<uint8_t> blob;
+	std::vector<uint8_t> blob;
 
-    std::string key_type = "ssh-ed25519";
+	std::string key_type = "ssh-ed25519";
 
-    // string "ssh-ed25519"
-    append_u32(blob, key_type.size());
-    blob.insert(blob.end(), key_type.begin(), key_type.end());
+	// string "ssh-ed25519"
+	append_u32(blob, key_type.size());
+	blob.insert(blob.end(), key_type.begin(), key_type.end());
 
-    // public key
-    append_u32(blob, pubkey.size());
-    blob.insert(blob.end(), pubkey.begin(), pubkey.end());
+	// public key
+	append_u32(blob, pubkey.size());
+	blob.insert(blob.end(), pubkey.begin(), pubkey.end());
 
-    return "ssh-ed25519 " + base64_encode(blob);
+	return "ssh-ed25519 " + base64_encode(blob);
 }

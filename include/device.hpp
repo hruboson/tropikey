@@ -1,11 +1,11 @@
 #pragma once
 
-#include <iostream>
-#include <cstring>
+#include <array>
 #include <cstdarg>
+#include <cstring>
+#include <iostream>
 #include <optional>
 #include <vector>
-#include <array>
 
 #include "key.hpp"
 #include "libtropic_common.h"
@@ -40,41 +40,45 @@ struct Version {
 
 class Device {
 public:
-    Device();
-    ~Device();
+	Device();
+	~Device();
 
-    bool init();
+	bool init();
 	bool close();
 	bool start_secure_session();
 
-	bool initialize_ed25519_key(lt_ecc_slot_t slot, std::array<uint8_t, ED25519_KEY_LEN>& pubkey);
-	bool initialize_ed25519_key(Ed25519Key& key);
+	bool initialize_ed25519_key(lt_ecc_slot_t slot, std::array<uint8_t, ED25519_KEY_LEN> &pubkey);
+	bool initialize_ed25519_key(Ed25519Key &key);
 
-	bool read_ed25519_key(lt_ecc_slot_t slot, std::array<uint8_t, ED25519_KEY_LEN>& pubkey);
-	bool read_ed25519_key(Ed25519Key& key);
+	bool read_ed25519_key(lt_ecc_slot_t slot, std::array<uint8_t, ED25519_KEY_LEN> &pubkey);
+	bool read_ed25519_key(Ed25519Key &key);
 	std::optional<Ed25519Key> read_ed25519_key(lt_ecc_slot_t slot); // internal silent use
 
 	bool erase_ed25519_key(lt_ecc_slot_t slot);
-	bool erase_ed25519_key(Ed25519Key& key);
+	bool erase_ed25519_key(Ed25519Key &key);
 
-	bool sign_ed25519_challenge(lt_ecc_slot_t slot, std::vector<uint8_t>& challenge, std::vector<uint8_t>& signature);
-	bool sign_ed25519_challenge(Ed25519Key key, std::vector<uint8_t>& challenge, std::vector<uint8_t>& signature);
+	bool sign_ed25519_challenge(lt_ecc_slot_t slot,
+	                            std::vector<uint8_t> &challenge,
+	                            std::vector<uint8_t> &signature);
+	bool sign_ed25519_challenge(Ed25519Key key,
+	                            std::vector<uint8_t> &challenge,
+	                            std::vector<uint8_t> &signature);
 
 	std::vector<Ed25519Key> list_ed25519_keys();
 
-    bool print_info(std::ostream& out);
-	const Version& get_hw_version() const { return hw_version; }
-    const Version& get_fw_version() const { return fw_version; }
+	bool print_info(std::ostream &out);
+	const Version &get_hw_version() const { return hw_version; }
+	const Version &get_fw_version() const { return fw_version; }
 
 private:
-	lt_handle_t* lt_handle_ptr();
+	lt_handle_t *lt_handle_ptr();
 
-    lt_handle_t lt_handle{};
-    lt_dev_posix_usb_dongle_t dongle{};
-    lt_ctx_mbedtls_v4_t crypto_ctx{};
+	lt_handle_t lt_handle{};
+	lt_dev_posix_usb_dongle_t dongle{};
+	lt_ctx_mbedtls_v4_t crypto_ctx{};
 
-    bool fail(const char* msg, lt_ret_t ret);
+	bool fail(const char *msg, lt_ret_t ret);
 
-    Version hw_version{};
-    Version fw_version{};
+	Version hw_version{};
+	Version fw_version{};
 };
