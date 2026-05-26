@@ -157,3 +157,16 @@ set_target_properties(${PROJECT_NAME}_pkcs11 PROPERTIES
 
 target_compile_definitions(${PROJECT_NAME}_pkcs11 PRIVATE ${LT_COMMON_DEFS})
 target_link_libraries(${PROJECT_NAME}_pkcs11 PRIVATE tropic)
+
+###########################################################################
+#                                                                         #
+#   FTXUI 																  #
+#                                                                         #
+###########################################################################
+
+add_subdirectory(${FTXUI_SRC} ftxui)
+target_link_libraries(${PROJECT_NAME}
+    PRIVATE ftxui::screen
+    PRIVATE ftxui::dom
+    PRIVATE ftxui::component
+)

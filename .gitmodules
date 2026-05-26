@@ -1,3 +1,9 @@
 [submodule "libtropic"]
 	path = libtropic
 	url = https://github.com/tropicsquare/libtropic
+[submodule "lib/libtropic"]
+	path = lib/libtropic
+	url = https://github.com/tropicsquare/libtropic
+[submodule "lib/ftxui"]
+	path = lib/ftxui
+	url = https://github.com/ArthurSonzogni/FTXUI

@@ -1,5 +1,22 @@
 {
   "nodes": {
+    "ftxui": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1779780431,
+        "narHash": "sha256-JEYcDH+8wsx+zTKPuZnMOR194vG3Yo1sJ2sZWZhX3Rk=",
+        "owner": "ArthurSonzogni",
+        "repo": "FTXUI",
+        "rev": "485a1758f08ecbd53a30f5514058dc270dede011",
+        "type": "github"
+      },
+      "original": {
+        "owner": "ArthurSonzogni",
+        "repo": "FTXUI",
+        "rev": "485a1758f08ecbd53a30f5514058dc270dede011",
+        "type": "github"
+      }
+    },
     "libtropic": {
       "flake": false,
       "locked": {
@@ -35,6 +52,7 @@
     },
     "root": {
       "inputs": {
+        "ftxui": "ftxui",
         "libtropic": "libtropic",
         "nixpkgs": "nixpkgs"
       }

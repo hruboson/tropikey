@@ -66,14 +66,17 @@ You can find example usage in my [NixOS configuration repo](https://github.com/h
 ## Build
 
 - Using Nix:
-    - `nix-shell` or `nix develop` to get into the development environment.
+    - `nix develop` to get into the development environment.
     - `nix build` to build the app and PKCS#11 `.so` library object.
 
-- Without Nix:
-    - Install CMake and Make. Optionally openssh and pkcs11-tools for testing.
-    - Download mbedtls and libsodium libraries.
-    - `make build` to generate the `.so` library implementation for your ssh agent.
-    - `make run` to run the sample program (good to check communication with the USB dev kit).
+- Install Nix on your distribution:
+    - **Fedora:** `sudo dnf install nix`
+    - **Arch:** `sudo pacman -S nix`
+    - **Debian/Ubuntu/Other:** Use the [official Nix installer](https://nixos.org/download.html#nix-install-linux):
+        ``` bash
+        curl -L https://nixos-nix-install-tests.cachix.org/serve/i6laym9jw3wg9mw6ncyrk6ajjxwab5dg00eb0nw80h9d7qqh7ja/install | sh -s -- --daemon
+      ```
+    - After installation, reload your shell or run `source $HOME/.nix-profile/etc/profile.d/nix.sh`
 
 ### Libraries used
 
