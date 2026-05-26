@@ -4,38 +4,12 @@
 #include <fstream>
 #include <iostream>
 
-#include <random>
 #include <sodium.h>
 
-#include <ftxui/ftxui.hpp>
-
 #include "device.hpp"
-#include "key.hpp"
-
-std::vector<uint8_t> generate_challenge(size_t size = 32) {
-	std::vector<uint8_t> challenge(size);
-
-	std::random_device rd;
-	for (auto &b : challenge) {
-		b = static_cast<uint8_t>(rd());
-	}
-
-	return challenge;
-}
-
-bool verify_signature(const std::array<uint8_t, ED25519_KEY_LEN> &pubkey,
-                      const std::vector<uint8_t> &challenge,
-                      const std::vector<uint8_t> &signature) {
-
-	if (pubkey.size() != crypto_sign_PUBLICKEYBYTES) return false; // 32
-	if (signature.size() != crypto_sign_BYTES) return false;       // 64
-
-	return crypto_sign_verify_detached(
-	           signature.data(), challenge.data(), challenge.size(), pubkey.data()) == 0;
-}
+#include "tui.hpp"
 
 int main(int argc, char *argv[]) {
-	using namespace ftxui;
 	std::ostream *out = &std::cout;
 	std::ofstream file;
 
@@ -49,83 +23,8 @@ int main(int argc, char *argv[]) {
 	}
 
 	Device device;
-
-	if (!device.init()) {
-		return EXIT_FAILURE;
-	}
-
-	if (!device.print_info(*out)) {
-		return EXIT_FAILURE;
-	}
-
-	std::cout << "Successfully read device information";
-	if (argc > 1) {
-		std::cout << ". Saved in " << argv[1];
-	}
-	std::cout << "\n";
-
-	if (!device.start_secure_session()) {
-		return EXIT_FAILURE;
-	}
-
-	std::cout << "============================\n";
-
-	Ed25519Key key(TR01_ECC_SLOT_0);
-	device.initialize_ed25519_key(key);
-	device.read_ed25519_key(key);
-
-	auto challenge_1 = generate_challenge();
-
-	std::vector<uint8_t> signature_1;
-
-	device.sign_ed25519_challenge(key, challenge_1, signature_1);
-
-	if (verify_signature(key.get_pubkey(), challenge_1, signature_1)) {
-		std::cout << "Signature VALID\n";
-	} else {
-		std::cout << "Signature INVALID\n";
-	}
-
-	std::cout << "============================\n";
-
-	lt_ecc_slot_t slot_write_to = TR01_ECC_SLOT_1;
-	std::array<uint8_t, ED25519_KEY_LEN> raw_pubkey{};
-	device.initialize_ed25519_key(slot_write_to, raw_pubkey);
-	device.read_ed25519_key(slot_write_to, raw_pubkey);
-
-	auto challenge_2 = generate_challenge();
-
-	std::vector<uint8_t> signature_2;
-
-	device.sign_ed25519_challenge(slot_write_to, challenge_2, signature_2);
-
-	if (verify_signature(raw_pubkey, challenge_2, signature_2)) {
-		std::cout << "Signature VALID\n";
-	} else {
-		std::cout << "Signature INVALID\n";
-	}
-
-	if (!device.close()) {
-		return EXIT_FAILURE;
-	}
-
-	std::vector<std::string> entries = {
-	    "Entry 1",
-	    "Entry 2",
-	    "Entry 3",
-	};
-
-	int selected = 0;
-
-	// Create a menu component
-	auto menu = Menu(&entries, &selected);
-
-	// You can decorate components using the pipe operator.
-	auto component = menu | border;
-
-	// Start the main loop
-	auto app = App::TerminalOutput();
-	app.Loop(component);
+	TuiApp app(device, out);
+	app.run();
 
 	return EXIT_SUCCESS;
 }
