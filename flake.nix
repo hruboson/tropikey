@@ -64,12 +64,12 @@
             ];
 
             installPhase = ''
-              					mkdir -p $out/lib
-              					mkdir -p $out/bin
+              mkdir -p $out/lib
+              mkdir -p $out/bin
 
-              					cp tropikey_pkcs11.so $out/lib/
-              					cp tropikey $out/bin/
-              				'';
+              cp tropikey_pkcs11.so $out/lib/
+              cp tropikey $out/bin/
+            '';
           };
 
           default = self.packages.${system}.tropikey;
