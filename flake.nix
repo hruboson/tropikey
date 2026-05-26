@@ -9,10 +9,9 @@
 		};
 	};
 
-	outputs = { self, libtropic, nixpkgs }: 
-		let
+	outputs = { self, libtropic, nixpkgs }: let
 		systems = [ "x86_64-linux" "aarch64-linux" ];
-	forAllSystems = nixpkgs.lib.genAttrs systems;
+		forAllSystems = nixpkgs.lib.genAttrs systems;
 	in {
 		packages = forAllSystems (system:
 			let
@@ -59,8 +58,8 @@
 
 		apps = forAllSystems (system: {
 			default = {
-			type = "app";
-			program = "${self.packages.${system}.default}/bin/tropikey";
+				type = "app";
+				program = "${self.packages.${system}.default}/bin/tropikey";
 			};
 		});
 	};
