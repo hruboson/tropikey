@@ -65,19 +65,24 @@ TuiApp::~TuiApp() {
 }
 
 bool TuiApp::init_device() {
+	device_initialized = false;
+
 	log_entries.clear();
 	log_entries.push_back("Initializing device...");
 
 	if (!device.init()) {
 		// todo logs
+		log_entries.push_back("Device not found");
 		return EXIT_FAILURE;
 	}
 
 	if (!device.print_info(*out)) {
+		log_entries.push_back("Could not print device info");
 		return EXIT_FAILURE;
 	}
 
 	if (!device.start_secure_session()) {
+		log_entries.push_back("Secure session could not be initialized");
 		return EXIT_FAILURE;
 	}
 
@@ -139,12 +144,14 @@ void TuiApp::run() {
 	}
 
 	auto sign_button = Button("Generate & Sign Challenge", [this] { handle_sign_challenge(); });
+	auto find_device_button = Button("Reinitialize/find device", [this] { init_device(); });
 
 	auto container = Container::Vertical({
 	    sign_button,
+		find_device_button
 	});
 
-	auto renderer = Renderer(container, [this, &sign_button] {
+	auto renderer = Renderer(container, [this, &sign_button, &find_device_button] {
 		// Build log entries
 		Elements log_elements;
 		for (const auto &entry : log_entries) {
@@ -184,7 +191,7 @@ void TuiApp::run() {
 		           // Controls
 		           hbox({
 		               sign_button->Render() | center,
-		               filler(),
+		               find_device_button->Render() | center,
 		           }) | border,
 
 		           // Challenge section
