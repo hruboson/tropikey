@@ -1,10 +1,6 @@
 #include <BOSL2/std.scad>
 $fn = 100;
 
-/**
- * I'm sorry this code is so ugly, I swear I will refactor this ... later ...
- */
-
 usb_c_width = 8.2;
 usb_c_neck_length = 2;
 
@@ -65,7 +61,18 @@ module board_half(wt = 2, ft = 1, h = 1.5, top = false){
     difference(){
         if(top){
             difference(){
-                board_reference(wt = wt, h = ft+h);
+                difference(){
+                    color("pink")
+                    board_reference(wt = wt, h = ft+h);
+                                    
+                    for(x = [0 : 6 : 50]){
+                        for(y = [0 : 6 : 50]){
+                            rotate([0,0,45])
+                            translate([x-20,y-20,-3.9])
+                            cube([5,5,10], center = true);
+                        }
+                    }
+                }
                 
                 translate([0,0,-joint_depth])
                 joint(ft = ft, wt = wt);
