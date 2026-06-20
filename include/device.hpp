@@ -43,6 +43,10 @@ public:
 	Device();
 	~Device();
 
+	// change to false to scan all 32 available slots on the HW, right
+	// right now I have no use for all 32 slots so I just use one - the first one
+	bool single_key_mode = true;
+
 	bool init();
 	bool close();
 	bool start_secure_session();

@@ -357,7 +357,7 @@ std::optional<Ed25519Key> Device::read_ed25519_key(lt_ecc_slot_t slot) {
 
 std::vector<Ed25519Key> Device::list_ed25519_keys() {
 	std::vector<Ed25519Key> keys;
-	for (int s = 0; s < 32; s++) {
+	for (int s = 0; s < (single_key_mode ? 1 : 32); s++) {
 		std::cerr << "scanning slot " << s << "...\n";
 		auto key = read_ed25519_key((lt_ecc_slot_t)s);
 		if (key) {
