@@ -1,11 +1,10 @@
 #pragma once
 
 #include <array>
-#include <cstdarg>
-#include <cstring>
 #include <iostream>
 #include <optional>
 #include <vector>
+#include <fstream>
 
 #include "key.hpp"
 #include "libtropic_common.h"
@@ -41,6 +40,8 @@ struct Version {
 class Device {
 public:
 	Device();
+	Device(std::ostream *out);
+	Device(std::ostream *out, std::ostream *err);
 	~Device();
 
 	// change to false to scan all 32 available slots on the HW, right
@@ -70,11 +71,16 @@ public:
 
 	std::vector<Ed25519Key> list_ed25519_keys();
 
-	bool print_info(std::ostream &out);
+	bool print_info();
 	const Version &get_hw_version() const { return hw_version; }
 	const Version &get_fw_version() const { return fw_version; }
 
 private:
+	// debug out
+	std::ostream *out;
+    std::ostream *err;
+	std::ofstream file;
+
 	lt_handle_t *lt_handle_ptr();
 
 	lt_handle_t lt_handle{};

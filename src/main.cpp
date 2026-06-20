@@ -1,6 +1,4 @@
-#include <cstdarg>
 #include <cstdlib>
-#include <cstring>
 #include <fstream>
 #include <iostream>
 
@@ -22,7 +20,7 @@ int main(int argc, char *argv[]) {
 		out = &file;
 	}
 
-	Device device;
+	Device device(out);
 	TuiApp app(device, out);
 	app.run();
 

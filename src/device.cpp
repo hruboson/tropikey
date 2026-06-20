@@ -12,6 +12,30 @@
 // global bridge for C callback
 static std::ostream *g_out = nullptr;
 
+// A streambuf that discards everything written to it, and a matching
+// ostream. Used when the caller passes no stream(s) at all, so that
+// *out << ... / *err << ... remain valid no-ops instead of needing a
+// null check at every call site.
+namespace {
+class NullBuffer : public std::streambuf {
+protected:
+	int overflow(int c) override { return c; }
+};
+
+class NullStream : public std::ostream {
+public:
+	NullStream() : std::ostream(&buf) {}
+
+private:
+	NullBuffer buf;
+};
+
+NullStream &null_stream() {
+	static NullStream instance;
+	return instance;
+}
+} // namespace
+
 static int print_cb(const char *fmt, ...) {
 	char buffer[1024];
 
@@ -117,7 +141,19 @@ std::string to_hex(std::vector<uint8_t> const &v) {
 	return result;
 }
 
-Device::Device() {}
+// `out`   -> general/info stream (was std::cout)
+// `err`   -> warning/error stream (was std::cerr)
+//
+// - No streams given       -> both out and err are silenced (discarded).
+// - One stream given       -> both out and err point at it.
+// - Two streams given      -> out and err point at their respective streams.
+// - A nullptr passed explicitly for either is also treated as "silence
+//   that stream", so callers can't accidentally crash on a null deref.
+Device::Device() : out(&null_stream()), err(&null_stream()) {}
+Device::Device(std::ostream *out)
+    : out(out ? out : &null_stream()), err(out ? out : &null_stream()) {}
+Device::Device(std::ostream *out, std::ostream *err)
+    : out(out ? out : &null_stream()), err(err ? err : &null_stream()) {}
 
 Device::~Device() {}
 
@@ -129,13 +165,13 @@ bool Device::init() {
 
 	psa_status_t status = psa_crypto_init();
 	if (status != PSA_SUCCESS) {
-		std::cerr << "PSA Crypto initialization failed, status=" << status << "\n";
+		*err << "PSA Crypto initialization failed, status=" << status << "\n";
 		return false;
 	}
 
 	int len = snprintf(dongle.dev_path, sizeof(dongle.dev_path), "%s", LT_USB_DEVKIT_PATH);
 	if (len < 0 || static_cast<size_t>(len) >= sizeof(dongle.dev_path)) {
-		std::cerr << "Error: LT_USB_DEVKIT_PATH too long\n";
+		*err << "Error: LT_USB_DEVKIT_PATH too long\n";
 		return false;
 	}
 
@@ -143,18 +179,18 @@ bool Device::init() {
 	lt_handle.l2.device = &dongle;
 	lt_handle.l3.crypto_ctx = &crypto_ctx;
 
-	std::cout << "Initializing handle...";
+	*out << "Initializing handle...";
 	ret = lt_init(&lt_handle);
 	if (LT_OK != ret) {
-		std::cerr << "\nFailed to initialize handle, ret=" << lt_ret_verbose(ret) << "\n";
+		*err << "\nFailed to initialize handle, ret=" << lt_ret_verbose(ret) << "\n";
 		return false;
 	}
-	std::cout << "OK\n";
+	*out << "OK\n";
 
 	// FW version
 	ret = lt_get_info_riscv_fw_ver(&lt_handle, fw_ver);
 	if (LT_OK != ret) {
-		std::cerr << "Failed to read FW version\n";
+		*err << "Failed to read FW version\n";
 		return false;
 	}
 	fw_version.major = fw_ver[3];
@@ -166,7 +202,7 @@ bool Device::init() {
 	lt_chip_id_t chip_id{};
 	ret = lt_get_info_chip_id(&lt_handle, &chip_id);
 	if (LT_OK != ret) {
-		std::cerr << "Failed to read chip ID\n";
+		*err << "Failed to read chip ID\n";
 		return false;
 	}
 
@@ -183,32 +219,32 @@ bool Device::init() {
 bool Device::close() {
 	lt_ret_t ret = LT_OK;
 
-	std::cout << "Aborting secure session ... ";
+	*out << "Aborting secure session ... ";
 	ret = lt_session_abort(&lt_handle);
 	if (LT_OK != ret) {
-		std::cerr << "\nFailed to abort Secure Session, ret=" << lt_ret_verbose(ret) << "\n";
+		*err << "\nFailed to abort Secure Session, ret=" << lt_ret_verbose(ret) << "\n";
 		lt_deinit(&lt_handle);
 		mbedtls_psa_crypto_free();
 		return false;
 	}
-	std::cout << "OK\n";
+	*out << "OK\n";
 
 	ret = lt_deinit(&lt_handle);
 	if (LT_OK != ret) {
-		std::cerr << "Could not deinitialize handle, ret=" << lt_ret_verbose(ret) << "\n";
+		*err << "Could not deinitialize handle, ret=" << lt_ret_verbose(ret) << "\n";
 		mbedtls_psa_crypto_free();
 		return false;
 	}
 	mbedtls_psa_crypto_free();
 
-	std::cout << "Deinitialization successful!\n";
+	*out << "Deinitialization successful!\n";
 
 	return true;
 }
 
 bool Device::start_secure_session() {
-	std::cout << "Starting Secure Session with key slot " << (int)TR01_PAIRING_KEY_SLOT_INDEX_0
-	          << " ... ";
+	*out << "Starting Secure Session with key slot " << (int)TR01_PAIRING_KEY_SLOT_INDEX_0
+	     << " ... ";
 	// Keys are chosen based on the CMake option LT_SH0_KEYS.
 	// Under the hood this runs the NOISE XX handshake: the chip and host exchange
 	// ephemeral X25519 public keys, derive a shared secret, and from that point all
@@ -216,16 +252,16 @@ bool Device::start_secure_session() {
 	lt_ret_t ret = lt_verify_chip_and_start_secure_session(
 	    &lt_handle, LT_EX_SH0_PRIV, LT_EX_SH0_PUB, TR01_PAIRING_KEY_SLOT_INDEX_0);
 	if (LT_OK != ret) {
-		std::cerr << "\nFailed to start Secure Session with key "
-		          << (int)TR01_PAIRING_KEY_SLOT_INDEX_0 << " ret=" << lt_ret_verbose(ret) << "\n";
-		std::cerr << "Check if you use correct SH0 keys! Hint: if you use an engineering sample "
-		             "chip, compile with\n"
-		          << "-DLT_SH0_KEYS=eng_sample\n";
+		*err << "\nFailed to start Secure Session with key "
+		     << (int)TR01_PAIRING_KEY_SLOT_INDEX_0 << " ret=" << lt_ret_verbose(ret) << "\n";
+		*err << "Check if you use correct SH0 keys! Hint: if you use an engineering sample "
+		        "chip, compile with\n"
+		     << "-DLT_SH0_KEYS=eng_sample\n";
 		return false;
 	}
-	std::cout << "OK\n";
+	*out << "OK\n";
 
-	std::cout << "Testing communication with a PING message ... ";
+	*out << "Testing communication with a PING message ... ";
 	std::string ping_msg = "Hello world!";
 
 	std::vector<uint8_t> recv_buf(ping_msg.size());
@@ -235,17 +271,17 @@ bool Device::start_secure_session() {
 	              recv_buf.data(),
 	              ping_msg.size());
 	if (LT_OK != ret) {
-		std::cerr << "Ping command failed, ret=" << lt_ret_verbose(ret) << "\n";
+		*err << "Ping command failed, ret=" << lt_ret_verbose(ret) << "\n";
 		return false;
 	}
 
 	std::string recv_str(reinterpret_cast<char *>(recv_buf.data()), recv_buf.size());
 	if (ping_msg != recv_str) {
-		std::cerr << "Ping command did not return the sent string, aborting\n";
+		*err << "Ping command did not return the sent string, aborting\n";
 		return false;
 	}
 
-	std::cout << "OK\n";
+	*out << "OK\n";
 
 	return true;
 }
@@ -262,21 +298,21 @@ bool Device::initialize_ed25519_key(lt_ecc_slot_t slot,
 	if (LT_OK == ret) {
 		// slot already occupied
 		// TODO add more STATE return types, or maybe try-catch-throw everywhere
-		std::cout << "Key already exists in slot " << slot
-		          << " ... public key: " << pubkey_to_ssh_ed25519(pubkey) << "\n";
+		*out << "Key already exists in slot " << slot
+		     << " ... public key: " << pubkey_to_ssh_ed25519(pubkey) << "\n";
 		return true;
 	} else {
 		// slot is empty, generate new
-		std::cout << "Slot empty, generating new key ... ";
+		*out << "Slot empty, generating new key ... ";
 		ret = lt_ecc_key_generate(&lt_handle, slot, TR01_CURVE_ED25519);
 		if (LT_OK != ret) {
-			std::cerr << "Error generating a key in slot " << slot << " ... aborting\n";
+			*err << "Error generating a key in slot " << slot << " ... aborting\n";
 			return fail("ECC_KEY_GEN", ret);
 		}
 
 		ret = lt_ecc_key_read(
 		    &lt_handle, slot, pubkey.data(), pubkey.size(), &curve_type, &origin_type);
-		std::cout << "public key: " << pubkey_to_ssh_ed25519(pubkey) << "\n";
+		*out << "public key: " << pubkey_to_ssh_ed25519(pubkey) << "\n";
 	}
 
 	return true;
@@ -295,13 +331,13 @@ bool Device::read_ed25519_key(lt_ecc_slot_t slot, std::array<uint8_t, ED25519_KE
 	    &lt_handle, slot, pubkey.data(), ED25519_KEY_LEN, &curve_type, &origin_type);
 
 	if (LT_OK == ret) {
-		std::cout << "Key exists in slot " << slot
-		          << " ... public key: " << pubkey_to_ssh_ed25519(pubkey) << "\n"
-		          << "Key details:\n\t" << "Curve type: " << to_string(curve_type) << "\n\t"
-		          << "Origin: " << to_string(origin_type) << "\n";
+		*out << "Key exists in slot " << slot
+		     << " ... public key: " << pubkey_to_ssh_ed25519(pubkey) << "\n"
+		     << "Key details:\n\t" << "Curve type: " << to_string(curve_type) << "\n\t"
+		     << "Origin: " << to_string(origin_type) << "\n";
 		return true;
 	} else {
-		std::cout << "Slot empty, please initialize the new key first!\n";
+		*out << "Slot empty, please initialize the new key first!\n";
 		return false;
 	}
 }
@@ -317,7 +353,7 @@ bool Device::erase_ed25519_key(lt_ecc_slot_t slot) {
 		return fail("ECC_KEY_ERASE", ret);
 	}
 
-	std::cout << "Successfully erased ed25519 key in slot " << slot << "\n";
+	*out << "Successfully erased ed25519 key in slot " << slot << "\n";
 	return true;
 }
 
@@ -334,8 +370,8 @@ bool Device::sign_ed25519_challenge(lt_ecc_slot_t slot,
 		return fail("Failed to sign a challenge", ret);
 	}
 
-	std::cout << "Successfully signed a challenge:\n\tChallenge (hex): " << to_hex(challenge)
-	          << "\n\tSignature (hex): " << to_hex(signature) << "\n";
+	*out << "Successfully signed a challenge:\n\tChallenge (hex): " << to_hex(challenge)
+	     << "\n\tSignature (hex): " << to_hex(signature) << "\n";
 
 	return true;
 }
@@ -358,20 +394,20 @@ std::optional<Ed25519Key> Device::read_ed25519_key(lt_ecc_slot_t slot) {
 std::vector<Ed25519Key> Device::list_ed25519_keys() {
 	std::vector<Ed25519Key> keys;
 	for (int s = 0; s < (single_key_mode ? 1 : 32); s++) {
-		std::cerr << "scanning slot " << s << "...\n";
+		*err << "scanning slot " << s << "...\n";
 		auto key = read_ed25519_key((lt_ecc_slot_t)s);
 		if (key) {
-			std::cerr << "  found key in slot " << s << "\n";
+			*err << "  found key in slot " << s << "\n";
 			keys.push_back(std::move(*key));
 		} else {
-			std::cerr << "  slot " << s << " empty\n";
+			*err << "  slot " << s << " empty\n";
 		}
 	}
 	return keys;
 }
 
-bool Device::print_info(std::ostream &out) {
-	g_out = &out;
+bool Device::print_info() {
+	g_out = out;
 
 	auto print = [&](const char *fmt, ...) {
 		char buffer[1024];
@@ -379,17 +415,17 @@ bool Device::print_info(std::ostream &out) {
 		va_start(ap, fmt);
 		vsnprintf(buffer, sizeof(buffer), fmt, ap);
 		va_end(ap);
-		out << buffer;
+		*out << buffer;
 	};
 
 	lt_ret_t ret;
 
-	out << "Sending reboot request...";
+	*out << "Sending reboot request...";
 	ret = lt_reboot(&lt_handle, TR01_REBOOT);
 	if (ret != LT_OK) return fail("lt_reboot", ret);
-	out << "OK\n";
+	*out << "OK\n";
 
-	out << "Reading data from chip...\n";
+	*out << "Reading data from chip...\n";
 
 	uint8_t fw_ver[4];
 
@@ -406,13 +442,13 @@ bool Device::print_info(std::ostream &out) {
 	print(
 	    "  SPECT FW version: %02X.%02X.%02X (.%02X)\n", fw_ver[3], fw_ver[2], fw_ver[1], fw_ver[0]);
 
-	out << "Sending maintenance reboot request...";
+	*out << "Sending maintenance reboot request...";
 	ret = lt_reboot(&lt_handle, TR01_MAINTENANCE_REBOOT);
 	if (ret != LT_OK) return fail("lt_reboot", ret);
-	out << "OK\n";
+	*out << "OK\n";
 
-	out << "Reading data from chip...\n";
-	out << "Firmware bank headers:\n";
+	*out << "Reading data from chip...\n";
+	*out << "Firmware bank headers:\n";
 
 	ret = lt_print_fw_header(&lt_handle, TR01_FW_BANK_FW1, print_cb);
 	if (ret != LT_OK) return fail("FW1 header", ret);
@@ -428,26 +464,26 @@ bool Device::print_info(std::ostream &out) {
 
 	lt_chip_id_t chip_id{};
 
-	out << "Chip ID data:\n";
+	*out << "Chip ID data:\n";
 	ret = lt_get_info_chip_id(&lt_handle, &chip_id);
 	if (ret != LT_OK) return fail("chip id", ret);
 
-	out << "---------------------------------------------------------\n";
+	*out << "---------------------------------------------------------\n";
 
 	ret = lt_print_chip_id(&chip_id, print_cb);
 	if (ret != LT_OK) return fail("print chip id", ret);
 
-	out << "---------------------------------------------------------\n";
+	*out << "---------------------------------------------------------\n";
 
-	out << "Sending reboot request...";
+	*out << "Sending reboot request...";
 	ret = lt_reboot(&lt_handle, TR01_REBOOT);
 	if (ret != LT_OK) return fail("lt_reboot", ret);
-	out << "OK!\n";
+	*out << "OK!\n";
 
 	return true;
 }
 
 bool Device::fail(const char *msg, lt_ret_t ret) {
-	std::cerr << "Error: " << msg << " failed, ret=" << lt_ret_verbose(ret) << "\n";
+	*err << "Error: " << msg << " failed, ret=" << lt_ret_verbose(ret) << "\n";
 	return false;
 }

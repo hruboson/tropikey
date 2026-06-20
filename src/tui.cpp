@@ -76,7 +76,7 @@ bool TuiApp::init_device() {
 		return EXIT_FAILURE;
 	}
 
-	if (!device.print_info(*out)) {
+	if (!device.print_info()) {
 		log_entries.push_back("Could not print device info");
 		return EXIT_FAILURE;
 	}
