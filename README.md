@@ -61,7 +61,7 @@ programs.tropikey = {
 
 For now I do not recommend enabling the PKCS#11 by default for SSH because not all functions are supported and some programs or services might not work with it. I would personally recommend using the `ssh` while passing the `-I tropikey_pkcs11.so` argument.
 
-You can find example usage in my [NixOS configuration repo](https://github.com/hruboson/nixos-conf/blob/parts/parts/services/tropikey.nix)|[flake.nix](https://github.com/hruboson/nixos-conf/blob/parts/flake.nix) (`parts` branch).
+You can find example usage in my [NixOS configuration repo](https://github.com/hruboson/nixos-conf/blob/main/parts/services/tropikey.nix)|[flake.nix](https://github.com/hruboson/nixos-conf/blob/main/flake.nix) (`parts` branch).
 
 ## Build
 
