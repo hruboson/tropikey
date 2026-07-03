@@ -129,6 +129,7 @@ set(LT_COMMON_DEFS
 add_executable(${PROJECT_NAME}
     src/main.cpp
 	src/tui.cpp
+	src/clipboard.cpp
     ${PROJECT_SHARED_SOURCES}
 )
 target_include_directories(${PROJECT_NAME} PRIVATE ${PROJECT_INCLUDE_DIRS} ${SODIUM_INCLUDE_DIRS})

@@ -1,4 +1,5 @@
 #include "tui.hpp"
+#include "clipboard.hpp"
 #include "device.hpp"
 
 #include <cstdlib>
@@ -11,13 +12,13 @@
 #include "ftxui/component/app.hpp"
 #include "ftxui/component/component.hpp"
 #include "ftxui/dom/elements.hpp"
-#include "ftxui/screen/screen.hpp"
+#include "ftxui/screen/screen.hpp""
+#include "key.hpp"
 
 /**
  * TODO:
- *  - some kind of MVC/MVVM structure
  *  - maybe common interface for tui and (future) gui app
- *  - separation of concerns!!! logging
+ *  - version stored in variable somewhere
  */
 
 using namespace ftxui;
@@ -66,34 +67,77 @@ TuiApp::~TuiApp() {
 
 bool TuiApp::init_device() {
 	device_initialized = false;
+	searching_for_device = true;
 
 	log_entries.clear();
 	log_entries.push_back("Initializing device...");
+	status = "Initializing device...";
 
 	if (!device.init()) {
 		// todo logs
 		log_entries.push_back("Device not found");
-		return EXIT_FAILURE;
+		status = "Device not found";
+
+		searching_for_device = false;
+		return false;
 	}
 
 	if (!device.print_info()) {
 		log_entries.push_back("Could not print device info");
-		return EXIT_FAILURE;
+
+		status = "Could not print device info";
+		searching_for_device = false;
+		return false;
 	}
 
 	if (!device.start_secure_session()) {
 		log_entries.push_back("Secure session could not be initialized");
-		return EXIT_FAILURE;
+
+		status = "Secure session could not be initialized";
+		searching_for_device = false;
+		return false;
 	}
 
 	device_initialized = true;
+	searching_for_device = false;
+	status = "Ready";
 
 	return true;
 }
 
+void TuiApp::read_key() {
+	if (!device_initialized){
+		status = "Device not initialized";
+		key.reset();
+		return;
+	}
+
+	reading_key = true;
+
+	// Initialize and read key
+	key.emplace(TR01_ECC_SLOT_0);
+	if (!device.initialize_ed25519_key(*key)) {
+		status = "Failed to initialize key";
+
+		key.reset();
+		reading_key = false;
+		return;
+	}
+
+	if (!device.read_ed25519_key(*key)) {
+		status = "Failed to read key";
+
+		key.reset();
+		reading_key = false;
+		return;
+	}
+
+	reading_key = false;
+}
+
 void TuiApp::handle_sign_challenge() {
 	if (!device_initialized) {
-		signature_status = "Device not initialized";
+		status = "Device not initialized";
 		return;
 	}
 
@@ -104,23 +148,23 @@ void TuiApp::handle_sign_challenge() {
 	current_challenge_hex = bytes_to_hex(challenge);
 
 	// Initialize and read key
-	Ed25519Key key(TR01_ECC_SLOT_0);
-	if (!device.initialize_ed25519_key(key)) {
-		signature_status = "Failed to initialize key";
+	key.emplace(TR01_ECC_SLOT_0);
+	if (!device.initialize_ed25519_key(*key)) {
+		status = "Failed to initialize key";
 		signing = false;
 		return;
 	}
 
-	if (!device.read_ed25519_key(key)) {
-		signature_status = "Failed to read key";
+	if (!device.read_ed25519_key(*key)) {
+		status = "Failed to read key";
 		signing = false;
 		return;
 	}
 
 	// Sign challenge
 	std::vector<uint8_t> signature;
-	if (!device.sign_ed25519_challenge(key, challenge, signature)) {
-		signature_status = "Failed to sign challenge";
+	if (!device.sign_ed25519_challenge(*key, challenge, signature)) {
+		status = "Failed to sign challenge";
 		signing = false;
 		return;
 	}
@@ -128,30 +172,63 @@ void TuiApp::handle_sign_challenge() {
 	current_signature_hex = bytes_to_hex(signature);
 
 	// Verify signature
-	if (verify_signature(key.get_pubkey(), challenge, signature)) {
-		signature_status = "Signature VALID";
+	if (verify_signature(key->get_pubkey(), challenge, signature)) {
+		status = "Signature VALID";
 	} else {
-		signature_status = "Signature INVALID";
+		status = "Signature INVALID";
 	}
 
 	signing = false;
 }
 
-void TuiApp::run() {
-	if (!init_device()) {
-		std::cerr << "Failed to initialize device\n";
+void TuiApp::copy_pubkey_to_clipboard() {
+	if (!key.has_value()) {
+		status = "No key loaded";
 		return;
 	}
 
-	auto sign_button = Button("Generate & Sign Challenge", [this] { handle_sign_challenge(); });
-	auto find_device_button = Button("Reinitialize/find device", [this] { init_device(); });
+	if (copy_to_clipboard(key->to_ssh_ed25519())) {
+		status = "Pubkey copied to clipboard";
+	} else {
+		status = "Failed to copy pubkey (no clipboard tool found)";
+	}
+}
 
-	auto container = Container::Vertical({
-	    sign_button,
-		find_device_button
-	});
+Element AsciiArt(const std::string &art) {
+	Elements lines;
+	std::stringstream ss(art);
+	std::string line;
+	while (std::getline(ss, line)) {
+		lines.push_back(text(line));
+	}
+	return vbox(std::move(lines));
+}
 
-	auto renderer = Renderer(container, [this, &sign_button, &find_device_button] {
+static const std::string tropikeyAciiArt = R"(
+     ┌───────┐
+   ┌─┘       └─┐
+ ┌─┘           └─┐
+ ▌   ┌──┐        └──+"+───·~^~·────..-─┐
+ ▌   [  ]           TROPIKEY   v. 0.1  ]]
+ ▌   └──┘        ┌⌐¿¬──..────.   .───'`┘
+ └─┐           ┌─┘            `"'
+   └─┐       ┌─┘
+     └───────┘
+
+)";
+
+void TuiApp::run() {
+	if (!init_device()) {
+		key.reset();
+	} else {
+		read_key();
+	}
+
+	auto screen = App::TerminalOutput();
+
+	auto container = Container::Vertical({});
+
+	auto renderer = Renderer(container, [this] {
 		// Build log entries
 		Elements log_elements;
 		for (const auto &entry : log_entries) {
@@ -160,75 +237,75 @@ void TuiApp::run() {
 
 		// Main layout
 		return vbox({
-		           // Header
-		           hbox({
-		               text("Tropikey - FTXUI Demo") | bold | color(Color::Cyan),
-		               filler(),
-		           }) | border,
+		    hbox({
+		        AsciiArt(tropikeyAciiArt) | center,
+		    }) | center,
 
-		           // Status section
-		           vbox({
-		               text(device_initialized ? "✓ Device Ready" : "⟳ Initializing...") |
-		                   (device_initialized ? color(Color::Green) : color(Color::Yellow)),
-		           }) | border,
+		    vbox({
+		        hbox({
+		            vbox({
+		                text("Status "),
+		            }),
+		            separator(),
+		            vbox({
+		                text(
+								device_initialized ? "Device ready" : searching_for_device ? "Searching..." : "Not found"
+							) | center
+							  | ( device_initialized ? color(Color::Green) : searching_for_device ? color(Color::Blue) : color(Color::Yellow) ),
+		            }) | flex,
+		        }),
+		        separator(),
 
-		           // Device Info
-		           vbox({
-		               hbox({
-		                   text("HW Version: ") | color(Color::White),
-		                   text(std::to_string(device.get_hw_version().major) + "." +
-		                        std::to_string(device.get_hw_version().minor) + "." +
-		                        std::to_string(device.get_hw_version().patch)),
-		               }),
-		               hbox({
-		                   text("FW Version: ") | color(Color::White),
-		                   text(std::to_string(device.get_fw_version().major) + "." +
-		                        std::to_string(device.get_fw_version().minor) + "." +
-		                        std::to_string(device.get_fw_version().patch)),
-		               }),
-		           }) | border,
+		        hbox({
+		            vbox({
+		                text("Pubkey "),
+		            }),
+		            separator(),
+		            vbox({
+		                text(
+								key.has_value() ? this->key->to_ssh_ed25519() : " ... "
+							) | center,
+		            }) | flex,
+		        }),
+		    }) | border,
 
-		           // Controls
-		           hbox({
-		               sign_button->Render() | center,
-		               find_device_button->Render() | center,
-		           }) | border,
-
-		           // Challenge section
-		           vbox({
-		               text("Challenge (hex):") | color(Color::Yellow),
-		               text(current_challenge_hex.empty() ? "(none)" : current_challenge_hex) | dim,
-		           }) | border,
-
-		           // Signature section
-		           vbox({
-		               text("Signature (hex):") | color(Color::Yellow),
-		               text(current_signature_hex.empty() ? "(none)" : current_signature_hex) | dim,
-		           }) | border,
-
-		           // Status
-		           vbox({
-		               text("Status:") | color(Color::Cyan),
-		               text(signature_status.empty() ? "-" : signature_status) | bold |
-		                   (signature_status.find("VALID") != std::string::npos
-		                        ? color(Color::Green)
-		                    : signature_status.find("Failed") != std::string::npos
-		                        ? color(Color::Red)
-		                        : color(Color::White)),
-		           }) | border,
-
-		           // Initialization log
-		           vbox({
-		               text("Initialization Log:") | color(Color::Magenta),
-		               vbox(log_elements) | border,
-		           }),
-
-		           // Instructions
-		           text("Press Ctrl+C to exit") | dim,
-		       }) |
-		       border | color(Color::White);
+		    hbox({
+		        text(" q - exit ") | inverted,
+		        text(" "),
+		        text(" y - copy pubkey ") | inverted,
+		        text(" "),
+				// TODO think about how I want to go abou this - if automatically
+				// generate one key on first use or allow re-generating (since I
+				// use single-slot mode on the HW chip)
+		        /*text(" g - generate key ") | inverted,
+		        text(" "),*/
+		        text(" r - reload device ") | inverted,
+		    }) | center,
+		    text( ">_ " + status) | dim | center,
+		});
 	});
 
-	auto screen = App::TerminalOutput();
-	screen.Loop(renderer);
+	auto main_component = CatchEvent(renderer, [this, &screen](Event event) {
+		if (event == Event::Character('q')) {
+			screen.Exit();
+			return true;
+		}
+		if (event == Event::Character('y')) {
+			// copy pubkey to clipboard
+			copy_pubkey_to_clipboard();
+			return true;
+		}
+		if (event == Event::Character('r')) {
+			if(!init_device()){
+				key.reset();
+				return false;
+			}
+
+			read_key();
+			return true;
+		}
+		return false; // not handled, let it propagate
+	});
+
+	screen.Loop(main_component);
 }

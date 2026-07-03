@@ -15,15 +15,20 @@ private:
 
 	Device& device;
 	bool init_device();
+	void read_key();
+	std::optional<Ed25519Key> key;
 
 	void handle_sign_challenge();
 	std::string bytes_to_hex(const std::vector<uint8_t> &bytes);
+	void copy_pubkey_to_clipboard();
 
 	// UI State
 	std::vector<std::string> log_entries;
 	std::string current_challenge_hex;
 	std::string current_signature_hex;
-	std::string signature_status;
+	std::string status;
 	bool device_initialized = false;
+	bool searching_for_device = false;
+	bool reading_key = false;
 	bool signing = false;
 };

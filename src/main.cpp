@@ -20,7 +20,7 @@ int main(int argc, char *argv[]) {
 		out = &file;
 	}
 
-	Device device(out);
+	Device device;
 	TuiApp app(device, out);
 	app.run();
 
