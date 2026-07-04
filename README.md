@@ -92,11 +92,11 @@ There are no unit tests at the moment and I'm mostly discovering how to actually
 
 # Enclosure
 
-I have included STL files for the enclosure for this DevKit. You can find it in [cad/](./cad/) directory.
+I have included STL files for the enclosure for this DevKit. You can find it in [cad/](./cad/) directory. I recommend using the [v3](./cad/enclosure_v3.stl) as that one came out the best (˶ᵔᵕᵔ˶).
 
-V2 enclosure:
-
-![USB devkit with enclosure v2](tropikey_with_enclosure.jpg)
+| V3 Enclosure front | V3 Enclosure back | V2 Enclosure |
+|:---:|:---:|:---:|
+| ![USB devkit with enclosure v3 front](tropikey_with_enclosure_v3_front.jpg) | ![USB devkit with enclosure v3 back](tropikey_with_enclosure_v3_back.jpg) | ![USB devkit with enclosure v2](tropikey_with_enclosure_v2.jpg) |
 
 # References
 

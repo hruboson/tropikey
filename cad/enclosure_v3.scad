@@ -65,11 +65,11 @@ module board_half(wt = 2, ft = 1, h = 1.5, top = false){
                     color("pink")
                     board_reference(wt = wt, h = ft+h);
                                     
-                    for(x = [0 : 6 : 50]){
-                        for(y = [0 : 6 : 50]){
+                    for(x = [0 : 3 : 50]){
+                        for(y = [0 : 3 : 50]){
                             rotate([0,0,45])
                             translate([x-20,y-20,-3.9])
-                            cube([5,5,10], center = true);
+                            cube([2,2,10], center = true);
                         }
                     }
                 }
@@ -78,7 +78,14 @@ module board_half(wt = 2, ft = 1, h = 1.5, top = false){
                 joint(ft = ft, wt = wt);
             }
         }else{
-            board_reference(wt = wt, h = ft+h);
+            difference(){
+                board_reference(wt = wt, h = ft+h);
+
+                translate([0,3,0.7])
+                rotate([0,180,90])
+                linear_extrude(4)
+                text("TROPIKEY", font="JetBrainsMono Nerd Font", size=6, valign="center", halign="center");
+            }
         }
         
         up(ft)
