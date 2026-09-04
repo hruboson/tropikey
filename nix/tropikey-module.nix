@@ -32,7 +32,7 @@ in
 
     # ssh config loads the module
     programs.ssh.extraConfig = lib.mkIf cfg.enableSshPkcs11 ''
-      			PKCS11Provider /etc/tropikey/tropikey_pkcs11.so
-      		'';
+      PKCS11Provider /etc/tropikey/tropikey_pkcs11.so
+    '';
   };
 }
