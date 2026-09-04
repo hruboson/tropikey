@@ -262,7 +262,7 @@ void TuiApp::run() {
 		            }),
 		            separator(),
 		            vbox({
-		                text(
+		                paragraphAlignCenter(
 								key.has_value() ? this->key->to_ssh_ed25519() : " ... "
 							) | center,
 		            }) | flex,
