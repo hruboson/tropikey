@@ -12,11 +12,11 @@
 // global bridge for C callback
 static std::ostream *g_out = nullptr;
 
+namespace {
 // A streambuf that discards everything written to it, and a matching
 // ostream. Used when the caller passes no stream(s) at all, so that
 // *out << ... / *err << ... remain valid no-ops instead of needing a
 // null check at every call site.
-namespace {
 class NullBuffer : public std::streambuf {
 protected:
 	int overflow(int c) override { return c; }
@@ -141,14 +141,16 @@ std::string to_hex(std::vector<uint8_t> const &v) {
 	return result;
 }
 
-// `out`   -> general/info stream (was std::cout)
-// `err`   -> warning/error stream (was std::cerr)
-//
-// - No streams given       -> both out and err are silenced (discarded).
-// - One stream given       -> both out and err point at it.
-// - Two streams given      -> out and err point at their respective streams.
-// - A nullptr passed explicitly for either is also treated as "silence
-//   that stream", so callers can't accidentally crash on a null deref.
+/**
+ * out	general/info stream (was std::cout)
+ * err	warning/error stream (was std::cerr)
+ *
+ * - no streams passed - both out and err are silenced (discarded).
+ * - one stream given - both out and err point at it.
+ * - two streams given - out and err point at their respective streams.
+ * - nullptr passed for either is also treated as "silence", so callers can't
+ *   accidentally crash on a null deref.
+ */
 Device::Device() : out(&null_stream()), err(&null_stream()) {}
 Device::Device(std::ostream *out)
     : out(out ? out : &null_stream()), err(out ? out : &null_stream()) {}
@@ -245,10 +247,13 @@ bool Device::close() {
 bool Device::start_secure_session() {
 	*out << "Starting Secure Session with key slot " << (int)TR01_PAIRING_KEY_SLOT_INDEX_0
 	     << " ... ";
-	// Keys are chosen based on the CMake option LT_SH0_KEYS.
-	// Under the hood this runs the NOISE XX handshake: the chip and host exchange
-	// ephemeral X25519 public keys, derive a shared secret, and from that point all
-	// L3 commands are encrypted.
+
+	/**
+	 * Keys are chosen based on the CMake option LT_SH0_KEYS.
+	 * This runs the NOISE XX handshake: the chip and host exchange
+	 * temporary X25519 public keys, derive a shared secret, and from that point all
+	 * L3 commands are encrypted.
+	 */
 	lt_ret_t ret = lt_verify_chip_and_start_secure_session(
 	    &lt_handle, LT_EX_SH0_PRIV, LT_EX_SH0_PUB, TR01_PAIRING_KEY_SLOT_INDEX_0);
 	if (LT_OK != ret) {

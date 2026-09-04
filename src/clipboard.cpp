@@ -15,8 +15,14 @@
 namespace {
 
 #if !defined(_WIN32)
-// Runs `cmd`, writes `text` to its stdin, returns true if the process
-// launched and exited with status 0.
+
+/**
+ * Runs cmd, writes text to its stdin, returns true if the process
+ * launched and exited with status 0.
+ *
+ * @param cmd Command to run
+ * @param text Text to write to stdin
+ */
 bool run_with_stdin(const std::string &cmd, const std::string &text) {
 	FILE *pipe = popen(cmd.c_str(), "w");
 	if (!pipe) return false;

@@ -11,6 +11,8 @@ int main(int argc, char *argv[]) {
 	std::ostream *out = &std::cout;
 	std::ofstream file;
 
+	//TODO CLI version (e.g. tropikey --pubkey, --ed25519, --shaformat, ... to print out public key in different formats... no TUI)
+
 	if (argc > 1) {
 		file.open(argv[1]);
 		if (!file) {

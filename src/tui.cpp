@@ -279,6 +279,8 @@ void TuiApp::run() {
 				// use single-slot mode on the HW chip)
 		        /*text(" g - generate key ") | inverted,
 		        text(" "),*/
+				// Add button/shortcut to regenerate key but first prompt for
+				// something like "Input the following: I_REALLYWANT2REGENERATEKEY" (github-like when deleting repo)
 		        text(" r - reload device ") | inverted,
 		    }) | center,
 		    text( ">_ " + status) | dim | center,
