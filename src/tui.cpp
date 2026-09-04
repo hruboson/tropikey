@@ -204,6 +204,14 @@ Element AsciiArt(const std::string &art) {
 	return vbox(std::move(lines));
 }
 
+Element WrappedPubkey(const std::string& keyStr, int chunkSize = 4) {
+    Elements chunks;
+    for (size_t i = 0; i < keyStr.size(); i += chunkSize) {
+        chunks.push_back(text(keyStr.substr(i, chunkSize)));
+    }
+    return hflow(std::move(chunks));
+}
+
 static const std::string tropikeyAciiArt = R"(
      ┌───────┐
    ┌─┘       └─┐
@@ -262,9 +270,7 @@ void TuiApp::run() {
 		            }),
 		            separator(),
 		            vbox({
-		                paragraphAlignCenter(
-								key.has_value() ? this->key->to_ssh_ed25519() : " ... "
-							) | center,
+						WrappedPubkey(key.has_value() ? this->key->to_ssh_ed25519() : " ... ") | center
 		            }) | flex,
 		        }),
 		    }) | border,
