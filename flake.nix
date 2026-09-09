@@ -63,7 +63,7 @@
               "-DFTXUI_SRC=${ftxui}"
             ];
 
-            installPhase = ''
+            installPhase = /* bash */ ''
               mkdir -p $out/lib
               mkdir -p $out/bin
 
@@ -97,7 +97,7 @@
               libx11
               libxcb
             ];
-            shellHook = ''
+            shellHook = /* bash */ ''
               echo "╔═════════════════════════════╗"
               echo "║ tropikey development shell  ║"
               echo "╚═════════════════════════════╝"
@@ -106,13 +106,13 @@
               echo "  [2/3] SSH utils ..... ssh, pkcs11 ready"
               if [ -f "CMakeLists.txt" ]; then
               	echo "  [3/3] compile_commands .... generating..."
-                  cmake -S . -B build \
-                  	-DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-                      -DLIBTROPIC_SRC=${libtropic} \
-                      -DFTXUI_SRC=${ftxui} \
-                      > /dev/null 2>&1
-                  ln -sf build/compile_commands.json compile_commands.json
-                  echo "  [3/3] compile_commands ..... compile_commands.json ready"
+              	cmake -S . -B build \
+              		-DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+              		-DLIBTROPIC_SRC=${libtropic} \
+              		-DFTXUI_SRC=${ftxui} \
+              		> /dev/null 2>&1
+              	ln -sf build/compile_commands.json compile_commands.json
+              	echo "  [3/3] compile_commands ..... compile_commands.json ready"
               else
               	echo "  [3/3] compile_commands .... no CMakeLists.txt found, skipping"
               fi
