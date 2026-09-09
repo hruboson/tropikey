@@ -68,6 +68,10 @@
 #define NULL_PTR 0
 #endif
 
+#define TROPIKEYSLOTID 0
+#define TROPIKEYTOKENID 0
+#define TROPIKEYSESSIONID 1
+
 #include "device.hpp"
 #include "key.hpp"
 #include "pkcs11.h"

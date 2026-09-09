@@ -104,11 +104,13 @@ Learning and reference materials I used while writing this...
 
 1. https://github.com/Pkcs11Interop/empty-pkcs11
 1. https://docs.oracle.com/en/java/javase/11/security/pkcs11-reference-guide1.html
+1. https://thalesdocs.com/gphsm/ptk/5.9/docs/Content/PTK-C_Program/intro_PKCS11.htm
 1. https://tropicsquare.github.io/libtropic/latest/tutorials/model/hw_wallet/
 1. https://tropicsquare.github.io/libtropic/latest/tutorials/linux/usb_devkit/full_chain_verification/
 1. https://tropicsquare.com/tropic01
 1. https://tropicsquare.github.io/libtropic/latest/reference/libtropic_architecture/
 1. https://docs.oasis-open.org/pkcs11/pkcs11-base/v2.40/os/pkcs11-base-v2.40-os.html
+1. https://www.cryptsoft.com/pkcs11doc/v220/pkcs11__all_8h.html#aC_Finalize
 1. https://tropicsquare.github.io/libtropic/latest/tutorials/linux/usb_devkit/
 1. https://tropicsquare.github.io/libtropic/latest/doxygen/build/html/
 1. https://cryptobook.nakov.com/
@@ -120,3 +122,19 @@ Learning and reference materials I used while writing this...
 ---
 
 [LICENSE](LICENSE)
+
+### Notes
+
+PKCS_11 functions to implement:
+
+- General purpose – ~~C_Initialize(), C_Finalize(), C_GetInfo(), C_GetFunctionList()~~
+- Session management – ~~C_OpenSession(), C_CloseSession(), C_GetSessionInfo(), C_CloseAllSessions()~~, C_Login() - implemented but login is not really used, C_Logout() - implemented but since login is not really used this is just empty function
+- Slot and token management – ~~C_GetSlotList(), C_GetSlotInfo(), C_GetMechanismList(), C_GetMechanismInfo()~~, C_SetPIN()
+- Encryption and decryption – C_EncryptInit(), C_Encrypt(), C_EncryptUpdate(), C_EncryptFinal(), C_DecryptInit(), C_Decrypt(), C_DecryptUpdate(), C_DecryptFinal()
+- Message digesting – C_DigestInit(), C_Digest(), C_DigestKey(), C_DigestUpdate(), C_DigestFinal()
+- Signing and applying MAC – C_Sign(), C_SignInit(), C_SignUpdate(), C_SignFinal(), C_SignRecoverInit(), C_SignRecover()
+- Signature verification – C_Verify(), C_VerifyInit(), C_VerifyUpdate(), C_VerifyFinal(), C_VerifyRecoverInit(), C_VerifyRecover()
+- Dual-purpose cryptographic functions – C_DigestEncryptUpdate(), C_DecryptDigestUpdate(), C_SignEncryptUpdate(), C_DecryptVerifyUpdate()
+- Random number generation – C_SeedRandom(), C_GenerateRandom()
+- Object management – C_CreateObject(), C_DestroyObject(), C_CopyObject(), C_FindObjects(), ~~C_FindObjectsInit()~~, C_FindObjectsFinal(), ~~C_GetAttributeValue()~~, C_SetAttributeValue()
+- Key management – C_GenerateKey(), C_GenerateKeyPair(), C_DeriveKey()

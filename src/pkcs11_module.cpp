@@ -197,10 +197,18 @@ CK_FUNCTION_LIST_3_0 empty_pkcs11_3_1_functions = {{0x03, 0x01},
 
 CK_INTERFACE empty_pkcs11_3_1_interface = {(CK_CHAR *)"PKCS 11", &empty_pkcs11_3_1_functions, 0};
 
+/**
+ * @brief Initializes the hardware device with TROPIC01 chip on it and starts secure session with the default key slot.
+ *
+ * @param[in] pInitArgs Arguments for the pkcs library. Tells the pkcs library how to use multithreading. Currently being ignored.
+ * @return CKR_OK if the connection with TROPIC01 chip was established properly
+ * @return CKR_DEVICE_ERROR if the connection with the TROPIC01 chip could not be established or could not start secure session with the key slot on the chip
+ * @return CKR_CRYPTOKI_ALREADY_INITIALIZED if the connection was already established
+ *
+ * @see Device::init()
+ * @see Device::start_secure_session()
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_Initialize)(CK_VOID_PTR pInitArgs) {
-	// pInitArgs - tells pkcs how to use multithreading
-	// Initialize memory buffer - done
-
 	UNUSED(pInitArgs);
 
 	std::lock_guard<std::mutex> lock(MODULE.mtx);
@@ -220,10 +228,18 @@ CK_DEFINE_FUNCTION(CK_RV, C_Initialize)(CK_VOID_PTR pInitArgs) {
 	return CKR_OK;
 }
 
+/**
+ * @brief Last function called, indicates the application is done with Cryptoki library.
+ * Deinitializes the HW device and clears the state of the optional MODULE.device
+ *
+ * @param[in] pReserved reserved for future uses, currently has no use
+ * @return CKR_OK after successfully deinitializing the device with the TROPIC01 chip
+ * @return CKR_CRYPTOKI_NOT_INITIALIZED if the device is no longer initialized
+ *
+ * @see Device::close()
+ * @see Device::reset()
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_Finalize)(CK_VOID_PTR pReserved) {
-	// finalizes memory buffer, last function called - done
-	// pReserved has no use (exists for possible future uses)
-
 	if (!MODULE.initialized) return CKR_CRYPTOKI_NOT_INITIALIZED;
 
 	MODULE.device->close();
@@ -234,6 +250,13 @@ CK_DEFINE_FUNCTION(CK_RV, C_Finalize)(CK_VOID_PTR pReserved) {
 	return CKR_OK;
 }
 
+/**
+ * @brief Returns general info about the Cryptoki (PKCS_11)
+ *
+ * @param[out] pInfo pointer to the location that receives the info
+ * @return CKR_OK
+ * @return CKR_ARGUMENTS_BAD
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_GetInfo)(CK_INFO_PTR pInfo) {
 	if (!pInfo) return CKR_ARGUMENTS_BAD;
 
@@ -254,6 +277,13 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetInfo)(CK_INFO_PTR pInfo) {
 	return CKR_OK;
 }
 
+/**
+ * @brief Sets the pointer to the library's list of functions.
+ *
+ * @param[out] ppFunctionList pointer to the list that will receive the functions pointer
+ * @return CKR_ARGUMENTS_BAD
+ * @return CKR_OK
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_GetFunctionList)(CK_FUNCTION_LIST_PTR_PTR ppFunctionList) {
 	if (NULL == ppFunctionList) return CKR_ARGUMENTS_BAD;
 
@@ -262,13 +292,28 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetFunctionList)(CK_FUNCTION_LIST_PTR_PTR ppFunction
 	return CKR_OK;
 }
 
+/**
+ * @brief Obtains available slots of the system.
+ *
+ * In the case of the Tropikey implementation this will always be one, regardless
+ * if the physical device (board with TROPIC01 chip) is connected or not. Currently only the slot ID
+ * 0 is used.
+ *
+ * @note A slot represents a physical device interface. This means the slot is the
+ * key reader.
+ * @see https://thalesdocs.com/gphsm/ptk/5.9/docs/Content/PTK-C_Program/intro_PKCS11.htm
+ *
+ * @param[in] tokenPresent indicates whether the list obtained includes only those slots with a
+ * token present (CK_TRUE), or all slots (CK_FALSE)
+ * @param[out] pSlotList if NULL_PTR then only return number of slots in pulCount, otherwise the list
+ * of slots is set in the space pointed to by this parameter
+ * @param[out] pulCount points to the location that receives the number of slots
+ * @return CKR_OK
+ * @return CKR_BUFFER_TOO_SMALL if the device is not initialized
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_GetSlotList)(CK_BBOOL tokenPresent,
                                          CK_SLOT_ID_PTR pSlotList,
                                          CK_ULONG_PTR pulCount) {
-	// obtain all slots
-
-	// always only one slot - the device (TROPIC01 devkit)
-	// regardless of whether the device is currently connected
 	if (tokenPresent && !MODULE.initialized) {
 		*pulCount = 0;
 		return CKR_OK;
@@ -281,13 +326,33 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetSlotList)(CK_BBOOL tokenPresent,
 
 	if (*pulCount < 1) return CKR_BUFFER_TOO_SMALL;
 
-	pSlotList[0] = 0; // the only slot ID
+	pSlotList[0] = TROPIKEYSLOTID; // the only slot ID
 	*pulCount = 1;
 	return CKR_OK;
 }
 
+/**
+ * @brief Obtains information about a slot in the system
+ *
+ * Returns HW and FW information of the TROPIC01 USB Devkit alongside description and other useful
+ * information.
+ *
+ * @note A slot represents a physical device interface. This means the slot is the
+ * key reader.
+ * @see https://thalesdocs.com/gphsm/ptk/5.9/docs/Content/PTK-C_Program/intro_PKCS11.htm
+ *
+ * @see Device::get_hw_version()
+ * @see Device::get_fw_version()
+ *
+ * @param[in] slotID ID of the slot
+ * @param[out] pInfo points to the location that receives the information
+ * @return CKR_OK
+ * @return CKR_SLOT_ID_INVALID if the slot ID is not TROPIKEYSLOTID
+ * @return CKR_ARGUMENTS_BAD if pInfo is not a valid pointer
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_GetSlotInfo)(CK_SLOT_ID slotID, CK_SLOT_INFO_PTR pInfo) {
-	if (slotID != 0) return CKR_SLOT_ID_INVALID; // only one slot available - the USB devkit
+	if (slotID != TROPIKEYSLOTID) return CKR_SLOT_ID_INVALID; // only one slot available - the USB devkit
+	if (!pInfo) return CKR_ARGUMENTS_BAD;
 
 	// PKCS#11 string are NOT null terminated
 	memset(pInfo->slotDescription, ' ', sizeof(pInfo->slotDescription));
@@ -311,8 +376,28 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetSlotInfo)(CK_SLOT_ID slotID, CK_SLOT_INFO_PTR pIn
 	return CKR_OK;
 }
 
+/**
+ * @brief Obtains information about a token in the system.
+ *
+ * Returns information about the token of the USB devkit.
+ *
+ * @note A token is a device that stores objects and can perform cryptographic functions
+ * @note Objects can be one of the following:
+ * 1. Data objects, which are defined by an application
+ * 2. Certificate objects, which are digital certificates such as X.509
+ * 3. Key objects, which can be public, private or secret cryptographic keys
+ * 4. Vendor-defined objects
+ * Generally they are public key and private key objects
+ *
+ * @param[in] slotID
+ * @param[out] pInfo
+ * @return CKR_SLOT_ID_INVALID if the slotID is not equal to TROPIKEYSLOTID
+ * @return CKR_ARGUMENTS_BAD if pInfo is not a valid pointer
+ * @return CKR_TOKEN_NOT_PRESENT if the device was not initialized
+ * @return CKR_OK
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_GetTokenInfo)(CK_SLOT_ID slotID, CK_TOKEN_INFO_PTR pInfo) {
-	if (slotID != 0) return CKR_SLOT_ID_INVALID;
+	if (slotID != TROPIKEYSLOTID) return CKR_SLOT_ID_INVALID;
 	if (!pInfo) return CKR_ARGUMENTS_BAD;
 	if (!MODULE.initialized) return CKR_TOKEN_NOT_PRESENT;
 
@@ -360,10 +445,25 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetTokenInfo)(CK_SLOT_ID slotID, CK_TOKEN_INFO_PTR p
 	return CKR_OK;
 }
 
+/**
+ * @brief Obtains the list of mechanisms the token supports.
+ *
+ * In the case of the Tropikey it only supports one for now: ED25519 mechanism.
+ * @todo implement more mechanisms
+ *
+ * @param[in] slotID ID of the token's slot
+ * @param[out] pMechanismList in case of NULL_PTR then only returns number of mechanisms in pulCount,
+ * otherwise store the mechanism type at the location pointed to by pMechanismList.
+ * @param[out] pulCount points to the location that receives the number of mechanisms
+ * @return CKR_SLOT_ID_INVALID if slot ID is not TROPIKEYSLOTID
+ * @return CKR_ARGUMENTS_BAD if the pulCount is not a valid pointer
+ * @return CKR_BUFFER_TOO_SMALL if the mechanism list is not a valid pointer
+ * @return CKR_OK
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_GetMechanismList)(CK_SLOT_ID slotID,
                                               CK_MECHANISM_TYPE_PTR pMechanismList,
                                               CK_ULONG_PTR pulCount) {
-	if (slotID != 0) return CKR_SLOT_ID_INVALID;
+	if (slotID != TROPIKEYSLOTID) return CKR_SLOT_ID_INVALID;
 	if (!pulCount) return CKR_ARGUMENTS_BAD;
 
 	// only Ed25519 signing for now
@@ -379,10 +479,23 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetMechanismList)(CK_SLOT_ID slotID,
 	return CKR_OK;
 }
 
+/**
+ * @brief Obtains information about a mechanism of the system.
+ *
+ * Notably sets the ulMinKeySize and ulMaxKeySize for Ed25519.
+ *
+ * @param[in] slotID ID of the slot the mechanism should be retrieved for
+ * @param[in] type type of the mechanism
+ * @param[out] pInfo pointer to space where the info will be stored
+ * @return CKR_SLOT_ID_INVALID if slotID is not TROPIKEYSLOTID
+ * @return CKR_ARGUMENTS_BAD if pInfo is not a valid pointer
+ * @return CKR_MECHANISM_INVALID if mechanism is not Ed25519 (for now the only one used)
+ * @return CKR_OK
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_GetMechanismInfo)(CK_SLOT_ID slotID,
                                               CK_MECHANISM_TYPE type,
                                               CK_MECHANISM_INFO_PTR pInfo) {
-	if (slotID != 0) return CKR_SLOT_ID_INVALID;
+	if (slotID != TROPIKEYSLOTID) return CKR_SLOT_ID_INVALID;
 	if (!pInfo) return CKR_ARGUMENTS_BAD;
 
 	if (type != CKM_EDDSA) return CKR_MECHANISM_INVALID;
@@ -394,6 +507,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetMechanismInfo)(CK_SLOT_ID slotID,
 	return CKR_OK;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_InitToken)(CK_SLOT_ID slotID,
                                        CK_UTF8CHAR_PTR pPin,
                                        CK_ULONG ulPinLen,
@@ -406,6 +522,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_InitToken)(CK_SLOT_ID slotID,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV,
                    C_InitPIN)(CK_SESSION_HANDLE hSession, CK_UTF8CHAR_PTR pPin, CK_ULONG ulPinLen) {
 	UNUSED(hSession);
@@ -415,6 +534,9 @@ CK_DEFINE_FUNCTION(CK_RV,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_SetPIN)(CK_SESSION_HANDLE hSession,
                                     CK_UTF8CHAR_PTR pOldPin,
                                     CK_ULONG ulOldLen,
@@ -429,18 +551,35 @@ CK_DEFINE_FUNCTION(CK_RV, C_SetPIN)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @brief Opens session between application and a token in particular slot. The slot must contain
+ * the key in it.
+ *
+ * @note only supporting one session at the time for now
+ * @note session is currently only open for single token
+ *
+ * @param[in] slotID ID of the slot
+ * @param[in] flags indicates type of session
+ * @param[in] pApplication application-defined pointer to be passed to the notification callback
+ * @param[in] Notify address of the notification callback function
+ * @param[out] phSession points to the location that receives the handle for the new session
+ *
+ * @return CKR_SLOT_ID_INVALID if the slot ID is not the TROPIKEYSLOTID
+ * @return CKR_ARGUMENTS_BAD if the phSession is not a valid pointer
+ * @return CKR_CRYPTOKI_NOT_INITIALIZED if the device is not initialized
+ * @return CKR_SESSION_PARALLEL_NOT_SUPPORTED if flags do not contain CKF_SERIAL_SESSION
+ * @return CKR_SESSION_COUNT if the session is already open
+ * @return CKR_OK
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_OpenSession)(CK_SLOT_ID slotID,
                                          CK_FLAGS flags,
                                          CK_VOID_PTR pApplication,
                                          CK_NOTIFY Notify,
                                          CK_SESSION_HANDLE_PTR phSession) {
-	// opens session between application and a slot
-	// slot must contain key in it
-
 	UNUSED(pApplication);
 	UNUSED(Notify);
 
-	if (slotID != 0) return CKR_SLOT_ID_INVALID;
+	if (slotID != TROPIKEYSLOTID) return CKR_SLOT_ID_INVALID;
 	if (!phSession) return CKR_ARGUMENTS_BAD;
 	if (!MODULE.initialized) return CKR_CRYPTOKI_NOT_INITIALIZED;
 
@@ -452,16 +591,24 @@ CK_DEFINE_FUNCTION(CK_RV, C_OpenSession)(CK_SLOT_ID slotID,
 	if (MODULE.session_open) return CKR_SESSION_COUNT; // only supporting one session
 
 	MODULE.session_open = true;
-	*phSession = 1; // only one session - fixed value
+	*phSession = TROPIKEYSESSIONID; // only one session - fixed value
 
 	return CKR_OK;
 }
 
+/**
+ * @brief Close an open session on a token, once the session is closed the app cannot pass any
+ * cryptographic requests to the token.
+ *
+ * @note locks or waits at the lock(Module.mtx) function call until it is unlocked
+ *
+ * @param[in] hSession session's handle (set in C_OpenSession)
+ * @return CKR_SESSION_HANDLE_INVALID if the session handle is not the TROPIKEYSESSIONID
+ * @return CKR_CRYPTOKI_NOT_INITIALIZED if the device was not initialized
+ * @return CKR_OK
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_CloseSession)(CK_SESSION_HANDLE hSession) {
-	// close an open session on a token, once session is closed app cannot pass any cryptographic
-	// request to a token
-
-	if (hSession != 1) return CKR_SESSION_HANDLE_INVALID;
+	if (hSession != TROPIKEYSESSIONID) return CKR_SESSION_HANDLE_INVALID;
 	if (!MODULE.initialized) return CKR_CRYPTOKI_NOT_INITIALIZED;
 
 	std::lock_guard<std::mutex> lock(MODULE.mtx);
@@ -469,11 +616,20 @@ CK_DEFINE_FUNCTION(CK_RV, C_CloseSession)(CK_SESSION_HANDLE hSession) {
 	return CKR_OK;
 }
 
+/**
+ * @brief Close an open session on all tokens.
+ *
+ * Since Tropikey uses only one slot and token, close that one.
+ *
+ * @note locks or waits at the lock(Module.mtx) function call until it is unlocked
+ *
+ * @param[in] slotID ID of the slot to close the session on
+ * @return CKR_SLOT_ID_INVALID if the slotID is not the TROPIKEYSLOTID
+ * @return CKR_CRYPTOKI_NOT_INITIALIZED if the device was not initialized
+ * @return CKR_OK
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_CloseAllSessions)(CK_SLOT_ID slotID) {
-	// close any open session on a token
-	// since only one session is supported close that one session
-
-	if (slotID != 0) return CKR_SLOT_ID_INVALID;
+	if (slotID != TROPIKEYSLOTID) return CKR_SLOT_ID_INVALID;
 	if (!MODULE.initialized) return CKR_CRYPTOKI_NOT_INITIALIZED;
 
 	std::lock_guard<std::mutex> lock(MODULE.mtx);
@@ -481,8 +637,18 @@ CK_DEFINE_FUNCTION(CK_RV, C_CloseAllSessions)(CK_SLOT_ID slotID) {
 	return CKR_OK;
 }
 
+/**
+ * @brief Obtains session information.
+ *
+ * @param[in] hSession session's handle (set in C_OpenSession)
+ * @param[out] pInfo pointer to space where the information will be written to
+ * @return CKR_SESSION_HANDLE_INVALID if the session handle is not the TROPIKEYSESSIONID
+ * @return CKR_CRYPTOKI_NOT_INITIALIZED if the device was not initialized
+ * @return CKR_ARGUMENTS_BAD if the pInfo is not a valid pointer
+ * @return CKR_OK
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_GetSessionInfo)(CK_SESSION_HANDLE hSession, CK_SESSION_INFO_PTR pInfo) {
-	if (hSession != 1) return CKR_SESSION_HANDLE_INVALID;
+	if (hSession != TROPIKEYSESSIONID) return CKR_SESSION_HANDLE_INVALID;
 	if (!MODULE.initialized) return CKR_CRYPTOKI_NOT_INITIALIZED;
 	if (!pInfo) return CKR_ARGUMENTS_BAD;
 
@@ -494,6 +660,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetSessionInfo)(CK_SESSION_HANDLE hSession, CK_SESSI
 	return CKR_OK;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_GetOperationState)(CK_SESSION_HANDLE hSession,
                                                CK_BYTE_PTR pOperationState,
                                                CK_ULONG_PTR pulOperationStateLen) {
@@ -504,6 +673,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetOperationState)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_SetOperationState)(CK_SESSION_HANDLE hSession,
                                                CK_BYTE_PTR pOperationState,
                                                CK_ULONG ulOperationStateLen,
@@ -518,35 +690,57 @@ CK_DEFINE_FUNCTION(CK_RV, C_SetOperationState)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @brief Authenticates the user
+ *
+ * Tropikey authentication is handled in C_Initilaize in start_secure_session. No PIN-based login.
+ * From PKCS#11's perspective we're always logged in.
+ *
+ * @param[in] hSession session's handle (set in C_OpenSession)
+ * @param[in] userType user type (either CKU_USER, CKU_SO, or CKU_CONTEXT_SPECIFIC)
+ * @param[in] pPin pointer to the user's PIN
+ * @param[in] ulPinLen is the length of the user's PIN
+ * @return CKR_SESSION_HANDLE_INVALID if the hSession is not TROPIKEYSESSIONID
+ * @return CKR_CRYPTOKI_NOT_INITIALIZED if the device is not initialized
+ * @return CKR_USER_TYPE_INVALID if the userType is not CKU_USER
+ * @return CKR_OK
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_Login)(CK_SESSION_HANDLE hSession,
                                    CK_USER_TYPE userType,
                                    CK_UTF8CHAR_PTR pPin,
                                    CK_ULONG ulPinLen) {
-	// authenticates an user
-
 	UNUSED(pPin);
 	UNUSED(ulPinLen);
 
-	if (hSession != 1) return CKR_SESSION_HANDLE_INVALID;
+	if (hSession != TROPIKEYSESSIONID) return CKR_SESSION_HANDLE_INVALID;
 	if (!MODULE.initialized) return CKR_CRYPTOKI_NOT_INITIALIZED;
 
 	// only CKU_USER, reject SO (security officer) login
 	if (userType != CKU_USER) return CKR_USER_TYPE_INVALID;
 
-	// authentication is handled by the hardware during C_Initialize,
-	// so from PKCS#11's perspective we're always "logged in"
 	return CKR_OK;
 }
 
+/**
+ * @brief Logs out the user from a token.
+ *
+ * @note basically an empty function since we don't really handle login anyway
+ *
+ * @param[in] hSession session's handle (set in C_OpenSession)
+ * @return CKR_SESSION_HANDLE_INVALID if the hSession is not TROPIKEYSESSIONID
+ * @return CKR_CRYPTOKI_NOT_INITIALIZED if the device is not initialized
+ * @return CKR_OK
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_Logout)(CK_SESSION_HANDLE hSession) {
-	// logs out user from a token
-
-	if (hSession != 1) return CKR_SESSION_HANDLE_INVALID;
+	if (hSession != TROPIKEYSESSIONID) return CKR_SESSION_HANDLE_INVALID;
 	if (!MODULE.initialized) return CKR_CRYPTOKI_NOT_INITIALIZED;
 
 	return CKR_OK;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_CreateObject)(CK_SESSION_HANDLE hSession,
                                           CK_ATTRIBUTE_PTR pTemplate,
                                           CK_ULONG ulCount,
@@ -559,6 +753,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_CreateObject)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_CopyObject)(CK_SESSION_HANDLE hSession,
                                         CK_OBJECT_HANDLE hObject,
                                         CK_ATTRIBUTE_PTR pTemplate,
@@ -573,6 +770,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_CopyObject)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_DestroyObject)(CK_SESSION_HANDLE hSession, CK_OBJECT_HANDLE hObject) {
 	UNUSED(hSession);
 	UNUSED(hObject);
@@ -580,6 +780,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_DestroyObject)(CK_SESSION_HANDLE hSession, CK_OBJECT
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_GetObjectSize)(CK_SESSION_HANDLE hSession,
                                            CK_OBJECT_HANDLE hObject,
                                            CK_ULONG_PTR pulSize) {
@@ -590,11 +793,28 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetObjectSize)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @brief Obtains the value of one or more attributes of an object.
+ *
+ * pTemplate is filled with attributes, it describes what is required and what to fill and then is
+ * filled with the information
+ *
+ * @param[in] hSession session's handle (set in C_OpenSession)
+ * @param[in] hObject object's handle
+ * @param[out] pTemplate points to a template that specifies which attribute values are to be
+ * obtained and receives the attribute values
+ * @param [in] ulCount number of attributes in the pTemplate
+ * @return CKR_SESSION_HANDLE_INVALID if the hSession is not TROPIKEYSESSIONID
+ * @return CKR_CRYPTOKI_NOT_INITIALIZED if the device is not initialized
+ * @return CKR_ARGUMENTS_BAD if pTemplate is not a valid pointer
+ * @return CKR_OBJECT_HANDLE_INVALID if the requested object (in this case the key) was not found on
+ * the device
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_GetAttributeValue)(CK_SESSION_HANDLE hSession,
                                                CK_OBJECT_HANDLE hObject,
                                                CK_ATTRIBUTE_PTR pTemplate,
                                                CK_ULONG ulCount) {
-	if (hSession != 1) return CKR_SESSION_HANDLE_INVALID;
+	if (hSession != TROPIKEYSESSIONID) return CKR_SESSION_HANDLE_INVALID;
 	if (!MODULE.initialized) return CKR_CRYPTOKI_NOT_INITIALIZED;
 	if (!pTemplate) return CKR_ARGUMENTS_BAD;
 
@@ -605,10 +825,11 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetAttributeValue)(CK_SESSION_HANDLE hSession,
 	                           MODULE.get_keys().end(),
 	                           [slot](const Ed25519Key &k) { return k.get_slot() == slot; });
 
-	if (key_it == MODULE.get_keys().end()) return CKR_OBJECT_HANDLE_INVALID;
+	if (key_it == MODULE.get_keys().end()) return CKR_OBJECT_HANDLE_INVALID; // key not found
 
-	const Ed25519Key &key = *key_it; // reference, not optional — use key.data()
+	const Ed25519Key &key = *key_it; // reference, not optional - use key.data()
 
+	// helper lambda function: fills memory space for given attribute and writes data
 	auto fill = [](CK_ATTRIBUTE_PTR attr, const void *data, CK_ULONG len) -> CK_RV {
 		if (!attr->pValue) {
 			attr->ulValueLen = len;
@@ -655,11 +876,11 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetAttributeValue)(CK_SESSION_HANDLE hSession,
 			break;
 		}
 		case CKA_EC_POINT: {
-			rv = fill(&pTemplate[i], key.data(), ED25519_KEY_LEN); // key.data() not key->data()
+			rv = fill(&pTemplate[i], key.data(), ED25519_KEY_LEN);
 			break;
 		}
 		case CKA_EC_PARAMS: {
-			static const uint8_t oid[] = {0x06, 0x03, 0x2B, 0x65, 0x70};
+			static const uint8_t oid[] = {0x06, 0x03, 0x2B, 0x65, 0x70}; // 1.3.101.112 ... OID for Ed25519
 			rv = fill(&pTemplate[i], oid, sizeof(oid));
 			break;
 		}
@@ -719,10 +940,15 @@ CK_DEFINE_FUNCTION(CK_RV, C_SetAttributeValue)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @brief Initializes a search for token and session objects that match a template.
+ *
+ *
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_FindObjectsInit)(CK_SESSION_HANDLE hSession,
                                              CK_ATTRIBUTE_PTR pTemplate,
                                              CK_ULONG ulCount) {
-	if (hSession != 1) return CKR_SESSION_HANDLE_INVALID;
+	if (hSession != TROPIKEYSESSIONID) return CKR_SESSION_HANDLE_INVALID;
 	if (!MODULE.initialized) return CKR_CRYPTOKI_NOT_INITIALIZED;
 	if (MODULE.find_active) return CKR_OPERATION_ACTIVE;
 
