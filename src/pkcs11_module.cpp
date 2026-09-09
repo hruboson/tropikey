@@ -26,6 +26,11 @@
 #include <cstring>
 #include <mutex>
 
+/**
+ * @defgroup pkcs11_api PKCS#11 API
+ * @{
+ */
+
 // CK = Cryptoki
 // CK_RV = CK return value
 
@@ -198,6 +203,7 @@ CK_FUNCTION_LIST_3_0 empty_pkcs11_3_1_functions = {{0x03, 0x01},
 CK_INTERFACE empty_pkcs11_3_1_interface = {(CK_CHAR *)"PKCS 11", &empty_pkcs11_3_1_functions, 0};
 
 /**
+ * @fn CK_RV C_Initialize(CK_VOID_PTR pInitArgs)
  * @brief Initializes the hardware device with TROPIC01 chip on it and starts secure session with the default key slot.
  *
  * @param[in] pInitArgs Arguments for the pkcs library. Tells the pkcs library how to use multithreading. Currently being ignored.
@@ -1852,3 +1858,5 @@ CK_DEFINE_FUNCTION(CK_RV, C_MessageVerifyFinal)(CK_SESSION_HANDLE hSession) {
 
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
+
+/** @} */
