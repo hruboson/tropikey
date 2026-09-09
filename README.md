@@ -73,9 +73,9 @@ You can find example usage in my [NixOS configuration repo](https://github.com/h
   - **Fedora:** `sudo dnf install nix`
   - **Arch:** `sudo pacman -S nix`
   - **Debian/Ubuntu/Other:** Use the [official Nix installer](https://nixos.org/download.html#nix-install-linux):
-        ``` bash
-        curl -L https://nixos-nix-install-tests.cachix.org/serve/i6laym9jw3wg9mw6ncyrk6ajjxwab5dg00eb0nw80h9d7qqh7ja/install | sh -s -- --daemon
-      ```
+    ``` bash
+    curl -L https://nixos-nix-install-tests.cachix.org/serve/i6laym9jw3wg9mw6ncyrk6ajjxwab5dg00eb0nw80h9d7qqh7ja/install | sh -s -- --daemon
+    ```
   - After installation, reload your shell or run `source $HOME/.nix-profile/etc/profile.d/nix.sh`
 
 - Generate documentation
