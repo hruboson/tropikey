@@ -70,3 +70,6 @@ result
 
 # cad
 *.FCBak
+
+# docs
+doc

@@ -93,6 +93,7 @@
               openssh
               opensc
               pkg-config
+              doxygen
 
               libx11
               libxcb
@@ -126,11 +127,24 @@
 
       nixosModules.default = import ./nix/tropikey-module.nix self;
 
-      apps = forAllSystems (system: {
-        default = {
-          type = "app";
-          program = "${self.packages.${system}.default}/bin/tropikey";
-        };
-      });
+      apps = forAllSystems (
+        system:
+        let
+          pkgs = import nixpkgs { inherit system; };
+        in
+        {
+          default = {
+            type = "app";
+            program = "${self.packages.${system}.default}/bin/tropikey";
+          };
+          docs = {
+            type = "app";
+            program = "${pkgs.writeShellScript "generate-docs" ''
+              ${pkgs.doxygen}/bin/doxygen Doxyfile
+              xdg-open "$PWD/doc/html/index.html" # hopefully user has xdg-open installed and on path (xdg-utils is like 100MB download, I ain't adding that)
+            ''}";
+          };
+        }
+      );
     };
 }
