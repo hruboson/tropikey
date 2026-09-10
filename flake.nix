@@ -140,7 +140,23 @@
           docs = {
             type = "app";
             program = "${pkgs.writeShellScript "generate-docs" ''
-              ${pkgs.doxygen}/bin/doxygen Doxyfile
+              cat > /tmp/tropikey-Doxyfile <<EOF
+              $(cat Doxyfile)
+
+              # STYLING
+
+              HTML_EXTRA_STYLESHEET  = ${pkgs.doxygen-awesome-css}/share/doxygen-awesome-css/doxygen-awesome.css \ ${pkgs.doxygen-awesome-css}/share/doxygen-awesome-css/doxygen-awesome-sidebar-only.css
+
+              HTML_COLORSTYLE        = DARK
+
+              GENERATE_TREEVIEW      = YES
+
+              DISABLE_INDEX          = NO
+
+              FULL_SIDEBAR           = NO
+
+              EOF
+              ${pkgs.doxygen}/bin/doxygen /tmp/tropikey-Doxyfile
               xdg-open "$PWD/doc/html/index.html" # hopefully user has xdg-open installed and on path (xdg-utils is like 100MB download, I ain't adding that)
             ''}";
           };
