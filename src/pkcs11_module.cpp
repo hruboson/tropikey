@@ -27,6 +27,10 @@
 #include <mutex>
 
 /**
+ * @todo fix MODULE mutex locks for C_* functions
+ */
+
+/**
  * @defgroup pkcs11_api PKCS#11 API
  * @{
  */
@@ -802,8 +806,11 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetObjectSize)(CK_SESSION_HANDLE hSession,
 /**
  * @brief Obtains the value of one or more attributes of an object.
  *
- * pTemplate is filled with attributes, it describes what is required and what to fill and then is
- * filled with the information
+ * Attribute is a "member" or a "value" of an object. An object consists of a set of attributes,
+ * each with its given value. pTemplate is filled with attributes, it describes what is required and
+ * what to fill and then is filled with the information
+ *
+ * @see https://docs.oasis-open.org/pkcs11/pkcs11-spec/v3.1/csd01/pkcs11-spec-v3.1-csd01.html#_Toc98177049
  *
  * @param[in] hSession session's handle (set in C_OpenSession)
  * @param[in] hObject object's handle
@@ -949,16 +956,25 @@ CK_DEFINE_FUNCTION(CK_RV, C_SetAttributeValue)(CK_SESSION_HANDLE hSession,
 /**
  * @brief Initializes a search for token and session objects that match a template.
  *
+ * In the case of Tropikey application the keys are the objects.
  *
+ * @param[in] hSession
+ * @param[in] pTemplate
+ * @param[in] ulCount
+ * @return CKR_SESSION_HANDLE_INVALID if the hSession is not TROPIKEYSESSIONID
+ * @return CKR_CRYPTOKI_NOT_INITIALIZED if the device is not initialized
+ * @return CKR_OPERATION_ACTIVE if the operation is already active on given hSession
+ * @return CKR_OK
  */
 CK_DEFINE_FUNCTION(CK_RV, C_FindObjectsInit)(CK_SESSION_HANDLE hSession,
                                              CK_ATTRIBUTE_PTR pTemplate,
                                              CK_ULONG ulCount) {
 	if (hSession != TROPIKEYSESSIONID) return CKR_SESSION_HANDLE_INVALID;
-	if (!MODULE.initialized) return CKR_CRYPTOKI_NOT_INITIALIZED;
-	if (MODULE.find_active) return CKR_OPERATION_ACTIVE;
 
 	std::lock_guard<std::mutex> lock(MODULE.mtx);
+
+	if (!MODULE.initialized) return CKR_CRYPTOKI_NOT_INITIALIZED;
+	if (MODULE.find_active) return CKR_OPERATION_ACTIVE;
 
 	CK_OBJECT_CLASS wanted_class = (CK_OBJECT_CLASS)-1;
 	for (CK_ULONG i = 0; i < ulCount; i++) {
@@ -980,16 +996,35 @@ CK_DEFINE_FUNCTION(CK_RV, C_FindObjectsInit)(CK_SESSION_HANDLE hSession,
 	return CKR_OK;
 }
 
+/**
+ * @brief Continues search for token and session objects that match a template, obtaining additional
+ * object handles.
+ *
+ * In case of Tropikey application the phObjects is filled with any found objects in cache during
+ * the C_FindObjectsInit.
+ *
+ * @param[in] hSession session's handle
+ * @param[out] phObject points to the location that receives the array of additional object (usually key) handles
+ * @param[in] ulMaxObjectCount maximum number of object handles to be returned
+ * @param[out] pulObjectCount points to the location that receives the actual number of object
+ * handles returned
+ * @return CKR_SESSION_HANDLE_INVALID if the hSession is not TROPIKEYSESSIONID
+ * @return CKR_ARGUMENTS_BAD if either phObject or pulObjectCount is an invalid pointer
+ * @return CKR_CRYPTOKI_NOT_INITIALIZED if the device is not initialized
+ * @return CKR_OPERATION_ACTIVE if the operation is already active on given hSession
+ * @return CKR_OK
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_FindObjects)(CK_SESSION_HANDLE hSession,
                                          CK_OBJECT_HANDLE_PTR phObject,
                                          CK_ULONG ulMaxObjectCount,
                                          CK_ULONG_PTR pulObjectCount) {
-	if (hSession != 1) return CKR_SESSION_HANDLE_INVALID;
-	if (!MODULE.initialized) return CKR_CRYPTOKI_NOT_INITIALIZED;
-	if (!MODULE.find_active) return CKR_OPERATION_NOT_INITIALIZED;
+	if (hSession != TROPIKEYSESSIONID) return CKR_SESSION_HANDLE_INVALID;
 	if (!phObject || !pulObjectCount) return CKR_ARGUMENTS_BAD;
 
 	std::lock_guard<std::mutex> lock(MODULE.mtx);
+
+	if (!MODULE.initialized) return CKR_CRYPTOKI_NOT_INITIALIZED;
+	if (!MODULE.find_active) return CKR_OPERATION_NOT_INITIALIZED;
 
 	CK_ULONG count = 0;
 	while (count < ulMaxObjectCount && MODULE.find_index < MODULE.found_objects.size()) {
@@ -1000,17 +1035,32 @@ CK_DEFINE_FUNCTION(CK_RV, C_FindObjects)(CK_SESSION_HANDLE hSession,
 	return CKR_OK;
 }
 
+/**
+ * @brief Finalizes the search for objects.
+ *
+ * In case of Tropikey application the found_objects cache is cleared.
+ *
+ * @param[in] hSession session's handle
+ * @return CKR_SESSION_HANDLE_INVALID if the hSession is not TROPIKEYSESSIONID
+ * @return CKR_CRYPTOKI_NOT_INITIALIZED if the device is not initialized
+ * @return CKR_OK
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_FindObjectsFinal)(CK_SESSION_HANDLE hSession) {
-	if (hSession != 1) return CKR_SESSION_HANDLE_INVALID;
+	if (hSession != TROPIKEYSESSIONID) return CKR_SESSION_HANDLE_INVALID;
+
+	std::lock_guard<std::mutex> lock(MODULE.mtx);
+
 	if (!MODULE.initialized) return CKR_CRYPTOKI_NOT_INITIALIZED;
 	if (!MODULE.find_active) return CKR_OPERATION_NOT_INITIALIZED;
 
-	std::lock_guard<std::mutex> lock(MODULE.mtx);
 	MODULE.find_active = false;
 	MODULE.found_objects.clear();
 	return CKR_OK;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_EncryptInit)(CK_SESSION_HANDLE hSession,
                                          CK_MECHANISM_PTR pMechanism,
                                          CK_OBJECT_HANDLE hKey) {
@@ -1021,6 +1071,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_EncryptInit)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_Encrypt)(CK_SESSION_HANDLE hSession,
                                      CK_BYTE_PTR pData,
                                      CK_ULONG ulDataLen,
@@ -1035,6 +1088,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_Encrypt)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_EncryptUpdate)(CK_SESSION_HANDLE hSession,
                                            CK_BYTE_PTR pPart,
                                            CK_ULONG ulPartLen,
@@ -1049,6 +1105,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_EncryptUpdate)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_EncryptFinal)(CK_SESSION_HANDLE hSession,
                                           CK_BYTE_PTR pLastEncryptedPart,
                                           CK_ULONG_PTR pulLastEncryptedPartLen) {
@@ -1059,6 +1118,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_EncryptFinal)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_DecryptInit)(CK_SESSION_HANDLE hSession,
                                          CK_MECHANISM_PTR pMechanism,
                                          CK_OBJECT_HANDLE hKey) {
@@ -1069,6 +1131,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_DecryptInit)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_Decrypt)(CK_SESSION_HANDLE hSession,
                                      CK_BYTE_PTR pEncryptedData,
                                      CK_ULONG ulEncryptedDataLen,
@@ -1083,6 +1148,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_Decrypt)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_DecryptUpdate)(CK_SESSION_HANDLE hSession,
                                            CK_BYTE_PTR pEncryptedPart,
                                            CK_ULONG ulEncryptedPartLen,
@@ -1097,6 +1165,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_DecryptUpdate)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_DecryptFinal)(CK_SESSION_HANDLE hSession,
                                           CK_BYTE_PTR pLastPart,
                                           CK_ULONG_PTR pulLastPartLen) {
@@ -1107,6 +1178,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_DecryptFinal)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_DigestInit)(CK_SESSION_HANDLE hSession, CK_MECHANISM_PTR pMechanism) {
 	UNUSED(hSession);
 	UNUSED(pMechanism);
@@ -1114,6 +1188,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_DigestInit)(CK_SESSION_HANDLE hSession, CK_MECHANISM
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_Digest)(CK_SESSION_HANDLE hSession,
                                     CK_BYTE_PTR pData,
                                     CK_ULONG ulDataLen,
@@ -1128,6 +1205,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_Digest)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_DigestUpdate)(CK_SESSION_HANDLE hSession,
                                           CK_BYTE_PTR pPart,
                                           CK_ULONG ulPartLen) {
@@ -1138,6 +1218,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_DigestUpdate)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_DigestKey)(CK_SESSION_HANDLE hSession, CK_OBJECT_HANDLE hKey) {
 	UNUSED(hSession);
 	UNUSED(hKey);
@@ -1145,6 +1228,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_DigestKey)(CK_SESSION_HANDLE hSession, CK_OBJECT_HAN
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_DigestFinal)(CK_SESSION_HANDLE hSession,
                                          CK_BYTE_PTR pDigest,
                                          CK_ULONG_PTR pulDigestLen) {
@@ -1155,33 +1241,76 @@ CK_DEFINE_FUNCTION(CK_RV, C_DigestFinal)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @brief Initializes the signing operation, where the signature is an appendix to the data.
+ *
+ * In the case of Tropikey application just mark signing state as active and assign sign_key_slot to
+ * the slot translated from hKey.
+ *
+ * @todo map the CKM_EDDSA definition to libtropic TR01_CURVE_ED25519 (and other supported
+ * algorithms)
+ *
+ * @param[in] hSession session's handle
+ * @param[in] pMechanism points to the signature mechanism
+ * @param[in] hKey handle of the signature key (object handle)
+ * @return CKR_SESSION_HANDLE_INVALID if the hSession is not TROPIKEYSESSIONID
+ * @return CKR_ARGUMENTS_BAD if either pMechanism is an invalid pointer
+ * @return CKR_CRYPTOKI_NOT_INITIALIZED if the device is not initialized
+ * @return CKR_OPERATION_ACTIVE if the operation is already active on given hSession
+ * @return CKR_MECHANISM_INVALID if the mechanism (signing algorithm) is not supported (currently
+ * only EDDSA is supported)
+ * @return CKR_KEY_TYPE_INCONSISTENT if the key handle is not a private key object handle
+ * @return CKR_OK
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_SignInit)(CK_SESSION_HANDLE hSession,
                                       CK_MECHANISM_PTR pMechanism,
                                       CK_OBJECT_HANDLE hKey) {
-	if (hSession != 1) return CKR_SESSION_HANDLE_INVALID;
-	if (!MODULE.initialized) return CKR_CRYPTOKI_NOT_INITIALIZED;
+	if (hSession != TROPIKEYSESSIONID) return CKR_SESSION_HANDLE_INVALID;
 	if (!pMechanism) return CKR_ARGUMENTS_BAD;
+
+	std::lock_guard<std::mutex> lock(MODULE.mtx);
+
+	if (!MODULE.initialized) return CKR_CRYPTOKI_NOT_INITIALIZED;
 	if (MODULE.sign_active) return CKR_OPERATION_ACTIVE;
 
 	if (pMechanism->mechanism != CKM_EDDSA) return CKR_MECHANISM_INVALID;
 
 	if (!is_privkey(hKey)) return CKR_KEY_TYPE_INCONSISTENT;
 
-	std::lock_guard<std::mutex> lock(MODULE.mtx);
 	MODULE.sign_key_slot = handle_to_slot(hKey);
 	MODULE.sign_active = true;
 	return CKR_OK;
 }
 
+/**
+ * @brief Signs the challenge using the TROPIC01 USB Devkit.
+ *
+ * @param[in] hSession session's handle
+ * @param[in] pData pointer to the data
+ * @param[in] ulDataLen length of the data
+ * @param[out] pSignature points to the location that receives the signature
+ * @param[out] pulSignatureLen points to the location that will hold length of the generated
+ * signature
+ * @return CKR_SESSION_HANDLE_INVALID if the hSession is not TROPIKEYSESSIONID
+ * @return CKR_ARGUMENTS_BAD if either pData or pulSignatureLen is an invalid pointer
+ * @return CKR_CRYPTOKI_NOT_INITIALIZED if the device is not initialized
+ * @return CKR_OPERATION_NOT_INITIALIZED if the operation is already active on given hSession
+ * @return CKR_BUFFER_TOO_SMALL if the buffer to hold the signature was too small
+ * @return CKR_DEVICE_ERROR if the signing on the TROPIC01 USB Devkit was not successful
+ * @return CKR_OK
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_Sign)(CK_SESSION_HANDLE hSession,
                                   CK_BYTE_PTR pData,
                                   CK_ULONG ulDataLen,
                                   CK_BYTE_PTR pSignature,
                                   CK_ULONG_PTR pulSignatureLen) {
-	if (hSession != 1) return CKR_SESSION_HANDLE_INVALID;
+	if (hSession != TROPIKEYSESSIONID) return CKR_SESSION_HANDLE_INVALID;
+	if (!pData || !pulSignatureLen) return CKR_ARGUMENTS_BAD;
+
+	std::lock_guard<std::mutex> lock(MODULE.mtx);
+
 	if (!MODULE.initialized) return CKR_CRYPTOKI_NOT_INITIALIZED;
 	if (!MODULE.sign_active) return CKR_OPERATION_NOT_INITIALIZED;
-	if (!pData || !pulSignatureLen) return CKR_ARGUMENTS_BAD;
 
 	// two-pass: first call with pSignature=NULL returns required length
 	if (!pSignature) {
@@ -1193,8 +1322,6 @@ CK_DEFINE_FUNCTION(CK_RV, C_Sign)(CK_SESSION_HANDLE hSession,
 		*pulSignatureLen = 64;
 		return CKR_BUFFER_TOO_SMALL;
 	}
-
-	std::lock_guard<std::mutex> lock(MODULE.mtx);
 
 	std::vector<uint8_t> challenge(pData, pData + ulDataLen);
 	std::vector<uint8_t> signature;
@@ -1210,6 +1337,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_Sign)(CK_SESSION_HANDLE hSession,
 	return CKR_OK;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_SignUpdate)(CK_SESSION_HANDLE hSession,
                                         CK_BYTE_PTR pPart,
                                         CK_ULONG ulPartLen) {
@@ -1220,6 +1350,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_SignUpdate)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_SignFinal)(CK_SESSION_HANDLE hSession,
                                        CK_BYTE_PTR pSignature,
                                        CK_ULONG_PTR pulSignatureLen) {
@@ -1230,6 +1363,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_SignFinal)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_SignRecoverInit)(CK_SESSION_HANDLE hSession,
                                              CK_MECHANISM_PTR pMechanism,
                                              CK_OBJECT_HANDLE hKey) {
@@ -1240,6 +1376,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_SignRecoverInit)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_SignRecover)(CK_SESSION_HANDLE hSession,
                                          CK_BYTE_PTR pData,
                                          CK_ULONG ulDataLen,
@@ -1254,6 +1393,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_SignRecover)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_VerifyInit)(CK_SESSION_HANDLE hSession,
                                         CK_MECHANISM_PTR pMechanism,
                                         CK_OBJECT_HANDLE hKey) {
@@ -1264,6 +1406,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_VerifyInit)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_Verify)(CK_SESSION_HANDLE hSession,
                                     CK_BYTE_PTR pData,
                                     CK_ULONG ulDataLen,
@@ -1278,6 +1423,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_Verify)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_VerifyUpdate)(CK_SESSION_HANDLE hSession,
                                           CK_BYTE_PTR pPart,
                                           CK_ULONG ulPartLen) {
@@ -1288,6 +1436,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_VerifyUpdate)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_VerifyFinal)(CK_SESSION_HANDLE hSession,
                                          CK_BYTE_PTR pSignature,
                                          CK_ULONG ulSignatureLen) {
@@ -1298,6 +1449,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_VerifyFinal)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_VerifyRecoverInit)(CK_SESSION_HANDLE hSession,
                                                CK_MECHANISM_PTR pMechanism,
                                                CK_OBJECT_HANDLE hKey) {
@@ -1308,6 +1462,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_VerifyRecoverInit)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_VerifyRecover)(CK_SESSION_HANDLE hSession,
                                            CK_BYTE_PTR pSignature,
                                            CK_ULONG ulSignatureLen,
@@ -1322,6 +1479,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_VerifyRecover)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_DigestEncryptUpdate)(CK_SESSION_HANDLE hSession,
                                                  CK_BYTE_PTR pPart,
                                                  CK_ULONG ulPartLen,
@@ -1336,6 +1496,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_DigestEncryptUpdate)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_DecryptDigestUpdate)(CK_SESSION_HANDLE hSession,
                                                  CK_BYTE_PTR pEncryptedPart,
                                                  CK_ULONG ulEncryptedPartLen,
@@ -1350,6 +1513,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_DecryptDigestUpdate)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_SignEncryptUpdate)(CK_SESSION_HANDLE hSession,
                                                CK_BYTE_PTR pPart,
                                                CK_ULONG ulPartLen,
@@ -1364,6 +1530,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_SignEncryptUpdate)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_DecryptVerifyUpdate)(CK_SESSION_HANDLE hSession,
                                                  CK_BYTE_PTR pEncryptedPart,
                                                  CK_ULONG ulEncryptedPartLen,
@@ -1378,6 +1547,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_DecryptVerifyUpdate)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_GenerateKey)(CK_SESSION_HANDLE hSession,
                                          CK_MECHANISM_PTR pMechanism,
                                          CK_ATTRIBUTE_PTR pTemplate,
@@ -1392,6 +1564,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_GenerateKey)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_GenerateKeyPair)(CK_SESSION_HANDLE hSession,
                                              CK_MECHANISM_PTR pMechanism,
                                              CK_ATTRIBUTE_PTR pPublicKeyTemplate,
@@ -1412,6 +1587,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_GenerateKeyPair)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_WrapKey)(CK_SESSION_HANDLE hSession,
                                      CK_MECHANISM_PTR pMechanism,
                                      CK_OBJECT_HANDLE hWrappingKey,
@@ -1428,6 +1606,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_WrapKey)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_UnwrapKey)(CK_SESSION_HANDLE hSession,
                                        CK_MECHANISM_PTR pMechanism,
                                        CK_OBJECT_HANDLE hUnwrappingKey,
@@ -1448,6 +1629,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_UnwrapKey)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_DeriveKey)(CK_SESSION_HANDLE hSession,
                                        CK_MECHANISM_PTR pMechanism,
                                        CK_OBJECT_HANDLE hBaseKey,
@@ -1464,6 +1648,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_DeriveKey)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_SeedRandom)(CK_SESSION_HANDLE hSession,
                                         CK_BYTE_PTR pSeed,
                                         CK_ULONG ulSeedLen) {
@@ -1474,6 +1661,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_SeedRandom)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_GenerateRandom)(CK_SESSION_HANDLE hSession,
                                             CK_BYTE_PTR RandomData,
                                             CK_ULONG ulRandomLen) {
@@ -1484,18 +1674,27 @@ CK_DEFINE_FUNCTION(CK_RV, C_GenerateRandom)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_GetFunctionStatus)(CK_SESSION_HANDLE hSession) {
 	UNUSED(hSession);
 
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_CancelFunction)(CK_SESSION_HANDLE hSession) {
 	UNUSED(hSession);
 
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_WaitForSlotEvent)(CK_FLAGS flags,
                                               CK_SLOT_ID_PTR pSlot,
                                               CK_VOID_PTR pReserved) {
@@ -1506,6 +1705,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_WaitForSlotEvent)(CK_FLAGS flags,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @brief
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_GetInterfaceList)(CK_INTERFACE_PTR pInterfacesList,
                                               CK_ULONG_PTR pulCount) {
 	if (NULL == pulCount) return CKR_ARGUMENTS_BAD;
@@ -1527,6 +1729,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetInterfaceList)(CK_INTERFACE_PTR pInterfacesList,
 	return CKR_OK;
 }
 
+/**
+ * @brief
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_GetInterface)(CK_UTF8CHAR_PTR pInterfaceName,
                                           CK_VERSION_PTR pVersion,
                                           CK_INTERFACE_PTR_PTR ppInterface,
@@ -1568,6 +1773,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_GetInterface)(CK_UTF8CHAR_PTR pInterfaceName,
 	return CKR_OK;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_LoginUser)(CK_SESSION_HANDLE hSession,
                                        CK_USER_TYPE userType,
                                        CK_UTF8CHAR_PTR pPin,
@@ -1584,6 +1792,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_LoginUser)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_SessionCancel)(CK_SESSION_HANDLE hSession, CK_FLAGS flags) {
 	UNUSED(hSession);
 	UNUSED(flags);
@@ -1591,6 +1802,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_SessionCancel)(CK_SESSION_HANDLE hSession, CK_FLAGS 
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_MessageEncryptInit)(CK_SESSION_HANDLE hSession,
                                                 CK_MECHANISM_PTR pMechanism,
                                                 CK_OBJECT_HANDLE hKey) {
@@ -1601,6 +1815,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_MessageEncryptInit)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_EncryptMessage)(CK_SESSION_HANDLE hSession,
                                             CK_VOID_PTR pParameter,
                                             CK_ULONG ulParameterLen,
@@ -1623,6 +1840,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_EncryptMessage)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_EncryptMessageBegin)(CK_SESSION_HANDLE hSession,
                                                  CK_VOID_PTR pParameter,
                                                  CK_ULONG ulParameterLen,
@@ -1637,6 +1857,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_EncryptMessageBegin)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_EncryptMessageNext)(CK_SESSION_HANDLE hSession,
                                                 CK_VOID_PTR pParameter,
                                                 CK_ULONG ulParameterLen,
@@ -1657,12 +1880,18 @@ CK_DEFINE_FUNCTION(CK_RV, C_EncryptMessageNext)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_MessageEncryptFinal)(CK_SESSION_HANDLE hSession) {
 	UNUSED(hSession);
 
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_MessageDecryptInit)(CK_SESSION_HANDLE hSession,
                                                 CK_MECHANISM_PTR pMechanism,
                                                 CK_OBJECT_HANDLE hKey) {
@@ -1673,6 +1902,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_MessageDecryptInit)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_DecryptMessage)(CK_SESSION_HANDLE hSession,
                                             CK_VOID_PTR pParameter,
                                             CK_ULONG ulParameterLen,
@@ -1695,6 +1927,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_DecryptMessage)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_DecryptMessageBegin)(CK_SESSION_HANDLE hSession,
                                                  CK_VOID_PTR pParameter,
                                                  CK_ULONG ulParameterLen,
@@ -1709,6 +1944,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_DecryptMessageBegin)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_DecryptMessageNext)(CK_SESSION_HANDLE hSession,
                                                 CK_VOID_PTR pParameter,
                                                 CK_ULONG ulParameterLen,
@@ -1729,12 +1967,18 @@ CK_DEFINE_FUNCTION(CK_RV, C_DecryptMessageNext)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_MessageDecryptFinal)(CK_SESSION_HANDLE hSession) {
 	UNUSED(hSession);
 
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_MessageSignInit)(CK_SESSION_HANDLE hSession,
                                              CK_MECHANISM_PTR pMechanism,
                                              CK_OBJECT_HANDLE hKey) {
@@ -1745,6 +1989,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_MessageSignInit)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_SignMessage)(CK_SESSION_HANDLE hSession,
                                          CK_VOID_PTR pParameter,
                                          CK_ULONG ulParameterLen,
@@ -1763,6 +2010,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_SignMessage)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_SignMessageBegin)(CK_SESSION_HANDLE hSession,
                                               CK_VOID_PTR pParameter,
                                               CK_ULONG ulParameterLen) {
@@ -1773,6 +2023,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_SignMessageBegin)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_SignMessageNext)(CK_SESSION_HANDLE hSession,
                                              CK_VOID_PTR pParameter,
                                              CK_ULONG ulParameterLen,
@@ -1791,12 +2044,18 @@ CK_DEFINE_FUNCTION(CK_RV, C_SignMessageNext)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_MessageSignFinal)(CK_SESSION_HANDLE hSession) {
 	UNUSED(hSession);
 
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_MessageVerifyInit)(CK_SESSION_HANDLE hSession,
                                                CK_MECHANISM_PTR pMechanism,
                                                CK_OBJECT_HANDLE hKey) {
@@ -1807,6 +2066,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_MessageVerifyInit)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_VerifyMessage)(CK_SESSION_HANDLE hSession,
                                            CK_VOID_PTR pParameter,
                                            CK_ULONG ulParameterLen,
@@ -1825,6 +2087,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_VerifyMessage)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_VerifyMessageBegin)(CK_SESSION_HANDLE hSession,
                                                 CK_VOID_PTR pParameter,
                                                 CK_ULONG ulParameterLen) {
@@ -1835,6 +2100,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_VerifyMessageBegin)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_VerifyMessageNext)(CK_SESSION_HANDLE hSession,
                                                CK_VOID_PTR pParameter,
                                                CK_ULONG ulParameterLen,
@@ -1853,6 +2121,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_VerifyMessageNext)(CK_SESSION_HANDLE hSession,
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
+/**
+ * @todo
+ */
 CK_DEFINE_FUNCTION(CK_RV, C_MessageVerifyFinal)(CK_SESSION_HANDLE hSession) {
 	UNUSED(hSession);
 
