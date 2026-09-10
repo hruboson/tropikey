@@ -114,6 +114,7 @@ Learning and reference materials I used while writing this...
 1. https://tropicsquare.com/tropic01
 1. https://tropicsquare.github.io/libtropic/latest/reference/libtropic_architecture/
 1. https://docs.oasis-open.org/pkcs11/pkcs11-base/v2.40/os/pkcs11-base-v2.40-os.html
+1. https://docs.oasis-open.org/pkcs11/pkcs11-spec/v3.1/csd01/pkcs11-spec-v3.1-csd01.html#_Toc98177049
 1. https://www.cryptsoft.com/pkcs11doc/v220/pkcs11__all_8h.html#aC_Finalize
 1. https://tropicsquare.github.io/libtropic/latest/tutorials/linux/usb_devkit/
 1. https://tropicsquare.github.io/libtropic/latest/doxygen/build/html/
