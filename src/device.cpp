@@ -141,16 +141,6 @@ std::string to_hex(std::vector<uint8_t> const &v) {
 	return result;
 }
 
-/**
- * out	general/info stream (was std::cout)
- * err	warning/error stream (was std::cerr)
- *
- * - no streams passed - both out and err are silenced (discarded).
- * - one stream given - both out and err point at it.
- * - two streams given - out and err point at their respective streams.
- * - nullptr passed for either is also treated as "silence", so callers can't
- *   accidentally crash on a null deref.
- */
 Device::Device() : out(&null_stream()), err(&null_stream()) {}
 Device::Device(std::ostream *out)
     : out(out ? out : &null_stream()), err(out ? out : &null_stream()) {}
