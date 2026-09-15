@@ -8,9 +8,22 @@
 
 #define ED25519_KEY_LEN 32
 
+/**
+ * @class Ed25519Key
+ * @brief High-level abstraction for the keypair stored on the TROPIC01 chip.
+ *
+ * @param[in] slot Slot on the TROPIC01 chip where the keypair is stored.
+ */
 class Ed25519Key {
 public:
 	Ed25519Key(lt_ecc_slot_t slot);
+
+	/**
+	 * @brief Returns the public key in the ssh ed25519 format
+	 *
+	 * Returns the public key in the format ssh ed25519 format with the prefix ssh-ed25519 followed
+	 * by the key.
+	 */
 	std::string to_ssh_ed25519();
 
 	// raw pointer access for lt_ecc_key_read
@@ -29,8 +42,17 @@ public:
 	lt_ecc_key_origin_t *origin_ptr() { return &origin; }
 
 private:
+	/**
+	 * @brief Number of the slot on the TROPIC01 chip where the keypair is stored.
+	 */
 	lt_ecc_slot_t slot;
-	std::array<uint8_t, ED25519_KEY_LEN> pubkey{}; // initialized to zeros
+
+	/**
+	 * @brief Internal storage for the public key acquired after initializing it on the TROPIC01
+	 * chip.
+	 * @note Initialized to zeros
+	 */
+	std::array<uint8_t, ED25519_KEY_LEN> pubkey{};
 
 	lt_ecc_curve_type_t curve = TR01_CURVE_ED25519;
 	lt_ecc_key_origin_t origin = TR01_CURVE_GENERATED;

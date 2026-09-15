@@ -39,7 +39,7 @@ struct Version {
 
 /**
  * @class Device
- * @brief High level abstraction of the TROPIC01 chip handle.
+ * @brief High-level abstraction of the TROPIC01 chip handle.
  *
  * Provides convenient functions for working with the USB Devkit
  *
