@@ -79,18 +79,19 @@
 #include <optional>
 
 /**
- * TODO
- *	- remove logs
- *	- implement rest of the functions (currently bare minimum for ssh)
+ * @brief Module-level state shared across all C_* functions
+ *
+ * @todo implement the rest of the pkcs#11 functions
+ * @todo key intiialization through the ssh-keygen
+ * @todo make this work with git remote authentication
  */
-
-// module-level state shared across all C_* functions
 struct Pkcs11Module {
+	//! @brief Module-wide mutex
 	std::mutex mtx;
 	bool initialized = false;
 	bool session_open = false;
 
-	// key cache, cleared on Finalize
+	//! @brief key cache, cleared on Finalize
 	std::optional<std::vector<Ed25519Key>> key_cache;
 
 	// find state
@@ -98,12 +99,22 @@ struct Pkcs11Module {
 	size_t find_index = 0;
 	bool find_active = false;
 
-	// sign state
+	/**
+	 * @brief Slot on the TROPIC01 chip used for signing the challenges.
+	 * @note Currently in single-slot mode - the library uses only one slot always.
+	 */
 	lt_ecc_slot_t sign_key_slot = TR01_ECC_SLOT_0;
 	bool sign_active = false;
 
-	std::optional<Device> device; // safer than null or not null
+	/**
+	 * @brief Device instance
+	 * @note std::optional is safer than null or not null
+	 */
+	std::optional<Device> device;
 
+	/**
+	 * @brief Return the key cache or fill it if its empty
+	 */
 	const std::vector<Ed25519Key> &get_keys() {
 		if (!key_cache.has_value()) {
 			key_cache = device->list_ed25519_keys();
