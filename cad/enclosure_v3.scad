@@ -2,7 +2,7 @@
 $fn = 100;
 
 usb_c_width = 8.2;
-usb_c_neck_length = 2;
+usb_c_neck_length = 1;
 
 joint_depth = 1;
 negative_height = 10;
