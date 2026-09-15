@@ -63,7 +63,7 @@ For now I do not recommend enabling the PKCS#11 by default for SSH because not a
 
 You can find example usage in my [NixOS configuration repo](https://github.com/hruboson/nixos-conf/blob/main/parts/services/tropikey.nix)|[flake.nix](https://github.com/hruboson/nixos-conf/blob/main/flake.nix) (`parts` branch).
 
-## Build
+## Build and Development
 
 - Using Nix:
   - `nix develop` to get into the development environment.
@@ -81,6 +81,13 @@ You can find example usage in my [NixOS configuration repo](https://github.com/h
 - Generate documentation
   - Run `nix run .#docs` in root directory of this project
   - It should automatically open the docs on or just open the `doc/html/index.html` file
+
+- Editing CAD
+  - I used the [OpenSCAD](https://openscad.org/) software when creating the enclosure. You can use any other editor that can edit the `.scad` files.
+  - To edit the model, you will need to install the BOSL2 library. Just clone [this repo](https://github.com/BelfrySCAD/BOSL2) into one of the following location based on your OS:
+    - Windows: `My Documents\OpenSCAD\libraries\`
+    - Linux: `$HOME/.local/share/OpenSCAD/libraries/`
+    - Mac OS X: `$HOME/Documents/OpenSCAD/libraries/`
 
 ### Libraries used
 
